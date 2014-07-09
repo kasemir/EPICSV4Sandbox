@@ -19,6 +19,9 @@ using std::string;
 
 namespace epics { namespace neutronServer {
 
+/** Called by thread to 'process' the record,
+ *  generating new data
+ */
 void NeutronPVRecord::neutronProcessor(void *me_parm)
 {
     NeutronPVRecord *me = (NeutronPVRecord *)me_parm;
@@ -35,6 +38,7 @@ void NeutronPVRecord::neutronProcessor(void *me_parm)
             me->beginGroupPut();
             me->process();
             me->endGroupPut();
+            // Every 10 second, show how many updates we generated so far
             if (++loops >= loops_in_10_seconds)
             {
                 loops = 0;
@@ -58,6 +62,7 @@ NeutronPVRecord::shared_pointer NeutronPVRecord::create(string const & recordNam
     StandardFieldPtr standardField = getStandardField();
     PVDataCreatePtr pvDataCreate = getPVDataCreate();
 
+    // Create the data structure that the PVRecord should use
     PVStructurePtr pvStructure = pvDataCreate->createPVStructure(
             fieldCreate->createFieldBuilder()
             ->addNestedStructure("pulse")
@@ -93,6 +98,7 @@ bool NeutronPVRecord::init()
 {
     initPVRecord();
 
+    // Fetch pointers into the records pvData which will be used to update the values
     pvPulseID = getPVStructure()->getULongField("pulse.value");
     if (pvPulseID.get() == NULL)
         return false;
@@ -124,11 +130,15 @@ void NeutronPVRecord::start()
 
 void NeutronPVRecord::generateFakeValues()
 {
+    // Increment the 'ID' of the pulse
     uint64 id = pvPulseID->get() + 1;
     pvPulseID->put(id);
 
+    // Vary a fake 'charge', somewhat based on the changing ID
     pvProtonCharge->put( (1 + id % 10)*1e8 );
 
+    // Create fake { time-of-flight, pixel } events,
+    // using the ID to get changing values
     shared_vector<uint32> tof(event_count);
     shared_vector<uint32> pixel(event_count);
     for (size_t i=0; i<event_count; ++i)
@@ -139,6 +149,7 @@ void NeutronPVRecord::generateFakeValues()
     pvTimeOfFlight->replace(freeze(tof));
     pvPixel->replace(freeze(pixel));
 
+    // Update timestamp
     timeStamp.getCurrent();
     pvTimeStamp.set(timeStamp);
 }
