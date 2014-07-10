@@ -11,6 +11,7 @@
 #include <epicsThread.h>
 #include <pv/epicsException.h>
 #include <pv/createRequest.h>
+#include <pv/event.h>
 #include <pv/pvData.h>
 #include <pv/clientFactory.h>
 #include <pv/pvAccess.h>
@@ -38,6 +39,14 @@ public:
     void message(std::string const & message,MessageType messageType);
     void channelCreated(const epics::pvData::Status& status, Channel::shared_pointer const & channel);
     void channelStateChange(Channel::shared_pointer const & channel, Channel::ConnectionState connectionState);
+
+    boolean waitUntilConnected(double timeOut)
+    {
+        return connect_event.wait(timeOut);
+    }
+
+private:
+    Event connect_event;
 };
 
 std::string MyChannelRequester::getRequesterName()
@@ -60,6 +69,8 @@ void MyChannelRequester::channelStateChange(Channel::shared_pointer const & chan
     cout << channel->getChannelName() << " state: "
          << Channel::ConnectionStateNames[connectionState]
          << " (" << connectionState << ")" << endl;
+    if (connectionState == Channel::CONNECTED)
+        connect_event.signal();
 }
 
 // -- ChannelGetRequester -----------------------------------------------------------------
@@ -75,6 +86,14 @@ public:
             ChannelGet::shared_pointer const & channelGet,
             epics::pvData::PVStructure::shared_pointer const & pvStructure,
             epics::pvData::BitSet::shared_pointer const & bitSet);
+
+    boolean waitUntilDone(double timeOut)
+    {
+        return done_event.wait(timeOut);
+    }
+
+private:
+    Event done_event;
 };
 
 std::string MyChannelGetRequester::getRequesterName()
@@ -99,11 +118,13 @@ void MyChannelGetRequester::channelGetConnect(const epics::pvData::Status& statu
         cout << "Channel structure:" << endl;
         structure->dump(cout);
 
+        channelGet->lastRequest();
         channelGet->get();
     }
     else
         cout << "ChannelGet for " << channelGet->getChannel()->getChannelName()
              << " problem, " << status << endl;
+    done_event.signal();
 }
 
 void MyChannelGetRequester::getDone(const epics::pvData::Status& status,
@@ -120,21 +141,21 @@ void MyChannelGetRequester::getDone(const epics::pvData::Status& status,
 
 // -- Stuff -----------------------------------------------------------------
 
-void monitor(string const &name, string const &request)
+void monitor(string const &name, string const &request, double timeout)
 {
     ChannelProvider::shared_pointer channelProvider =
             getChannelProviderRegistry()->getProvider("pva");
     if (! channelProvider)
         THROW_EXCEPTION2( std::runtime_error, "No channel provider");
 
-    ChannelRequester::shared_pointer channelRequester(new MyChannelRequester());
-    Channel::shared_pointer channel = channelProvider->createChannel(name, channelRequester, ChannelProvider::PRIORITY_DEFAULT);
+    shared_ptr<MyChannelRequester> channelRequester(new MyChannelRequester());
+    shared_ptr<Channel> channel(channelProvider->createChannel(name, channelRequester));
+    channelRequester->waitUntilConnected(timeout);
 
-    ChannelGetRequester::shared_pointer channelGetRequester(new MyChannelGetRequester());
+    shared_ptr<MyChannelGetRequester> channelGetRequester(new MyChannelGetRequester());
     PVStructure::shared_pointer pvRequest = CreateRequest::create()->createRequest(request);
     channel->createChannelGet(channelGetRequester, pvRequest);
-
-    // TODO: Should wait for things to happen
+    channelGetRequester->waitUntilDone(timeout);
 }
 
 void listProviders()
@@ -151,20 +172,25 @@ static void help(const char *name)
     cout << "USAGE: " << name << " [options] [channel]" << endl;
     cout << "  -h        : Help" << endl;
     cout << "  -r request: Request" << endl;
+    cout << "  -w seconds: Wait timeout" << endl;
 }
 
 int main(int argc,char *argv[])
 {
     string channel = "neutrons";
-    string request = "field(pulse,time_of_flight,pixel)";
+    string request = "field()";
+    double timeout = 2.0;
 
     int opt;
-    while ((opt = getopt(argc, argv, "r:h")) != -1)
+    while ((opt = getopt(argc, argv, "r:w:h")) != -1)
     {
         switch (opt)
         {
         case 'r':
             request = optarg;
+            break;
+        case 'w':
+            timeout = atof(optarg);
             break;
         case 'h':
             help(argv[0]);
@@ -179,12 +205,13 @@ int main(int argc,char *argv[])
 
     cout << "Channel: " << channel << endl;
     cout << "Request: " << request << endl;
+    cout << "Wait:    " << timeout << " sec" << endl;
 
     try
     {
         ClientFactory::start();
         listProviders();
-        monitor(channel, request);
+        monitor(channel, request, timeout);
         epicsThreadSleep(5.0);
         ClientFactory::stop();
     }
