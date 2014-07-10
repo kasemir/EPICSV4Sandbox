@@ -22,7 +22,6 @@ using namespace epics::pvData;
 using namespace epics::pvAccess;
 
 // -- Requester Helper -----------------------------------------------------------------
-
 static void messageHelper(Requester &requester, string const & message, MessageType messageType)
 {
     cout << requester.getRequesterName()
@@ -31,16 +30,27 @@ static void messageHelper(Requester &requester, string const & message, MessageT
 }
 
 // -- ChannelRequester -----------------------------------------------------------------
-
 class MyChannelRequester : public ChannelRequester
 {
 public:
+    MyChannelRequester()
+    {
+        cout << "MyChannelRequester" << endl;
+    }
+
+    ~MyChannelRequester()
+    {
+        cout << "~MyChannelRequester" << endl;
+    }
+
     string getRequesterName()
     {   return "MyChannelRequester";  }
+
     void message(string const & message,MessageType messageType)
     {   messageHelper(*this, message, messageType); }
 
-    void channelCreated(const epics::pvData::Status& status, Channel::shared_pointer const & channel);
+    void channelCreated(const Status& status, Channel::shared_pointer const & channel);
+
     void channelStateChange(Channel::shared_pointer const & channel, Channel::ConnectionState connectionState);
 
     boolean waitUntilConnected(double timeOut)
@@ -52,7 +62,7 @@ private:
     Event connect_event;
 };
 
-void MyChannelRequester::channelCreated(const epics::pvData::Status& status, Channel::shared_pointer const & channel)
+void MyChannelRequester::channelCreated(const Status& status, Channel::shared_pointer const & channel)
 {
     cout << channel->getChannelName() << " created, " << status << endl;
 }
@@ -66,48 +76,34 @@ void MyChannelRequester::channelStateChange(Channel::shared_pointer const & chan
         connect_event.signal();
 }
 
-// -- GetFieldRequester -----------------------------------------------------------------
-class MyFieldRequester : public GetFieldRequester
-{
-public:
-    string getRequesterName()
-    {   return "MyFieldRequester";  }
-    void message(string const & message,MessageType messageType)
-    {   messageHelper(*this, message, messageType); }
-
-    void getDone(const Status& status, FieldConstPtr const & field);
-
-    boolean waitUntilDone(double timeOut)
-    {
-        return done_event.wait(timeOut);
-    }
-
-private:
-    Event done_event;
-};
-
-void MyFieldRequester::getDone(const Status& status, FieldConstPtr const & field)
-{
-    cout << "Field type: " << field->getType() << endl;
-    done_event.signal();
-}
-
 // -- ChannelGetRequester -----------------------------------------------------------------
 class MyChannelGetRequester : public ChannelGetRequester
 {
 public:
+    MyChannelGetRequester()
+    {
+        cout << "MyChannelGetRequester" << endl;
+    }
+
+    ~MyChannelGetRequester()
+    {
+        cout << "~MyChannelGetRequester" << endl;
+    }
+
     string getRequesterName()
     {   return "MyChannelGetRequester";  }
+
     void message(string const & message,MessageType messageType)
     {   messageHelper(*this, message, messageType); }
 
-    void channelGetConnect(const epics::pvData::Status& status,
+    void channelGetConnect(const Status& status,
             ChannelGet::shared_pointer const & channelGet,
-            epics::pvData::Structure::const_shared_pointer const & structure);
-    void getDone(const epics::pvData::Status& status,
+            Structure::const_shared_pointer const & structure);
+
+    void getDone(const Status& status,
             ChannelGet::shared_pointer const & channelGet,
-            epics::pvData::PVStructure::shared_pointer const & pvStructure,
-            epics::pvData::BitSet::shared_pointer const & bitSet);
+            PVStructure::shared_pointer const & pvStructure,
+            BitSet::shared_pointer const & bitSet);
 
     boolean waitUntilDone(double timeOut)
     {
@@ -118,70 +114,58 @@ private:
     Event done_event;
 };
 
-
-void MyChannelGetRequester::channelGetConnect(const epics::pvData::Status& status,
+void MyChannelGetRequester::channelGetConnect(const Status& status,
         ChannelGet::shared_pointer const & channelGet,
-        epics::pvData::Structure::const_shared_pointer const & structure)
+        Structure::const_shared_pointer const & structure)
 {
     // Could inspect or memorize the channel's structure...
     if (status.isSuccess())
     {
         cout << "ChannelGet for " << channelGet->getChannel()->getChannelName()
              << " connected, " << status << endl;
-        cout << "Channel structure:" << endl;
         structure->dump(cout);
 
-        channelGet->lastRequest();
         channelGet->get();
     }
     else
+    {
         cout << "ChannelGet for " << channelGet->getChannel()->getChannelName()
              << " problem, " << status << endl;
-    done_event.signal();
+        done_event.signal();
+    }
 }
 
-void MyChannelGetRequester::getDone(const epics::pvData::Status& status,
+void MyChannelGetRequester::getDone(const Status& status,
         ChannelGet::shared_pointer const & channelGet,
-        epics::pvData::PVStructure::shared_pointer const & pvStructure,
-        epics::pvData::BitSet::shared_pointer const & bitSet)
+        PVStructure::shared_pointer const & pvStructure,
+        BitSet::shared_pointer const & bitSet)
 {
     cout << "ChannelGet for " << channelGet->getChannel()->getChannelName()
          << " finished, " << status << endl;
 
     if (status.isSuccess())
+    {
         pvStructure->dumpValue(cout);
+        done_event.signal();
+    }
 }
 
-// -- Stuff -----------------------------------------------------------------
-
-void monitor(string const &name, string const &request, double timeout)
+// --------------------------------------------------------------------------
+void getValue(string const &name, string const &request, double timeout)
 {
     ChannelProvider::shared_pointer channelProvider =
             getChannelProviderRegistry()->getProvider("pva");
     if (! channelProvider)
-        THROW_EXCEPTION2( std::runtime_error, "No channel provider");
+        THROW_EXCEPTION2(std::runtime_error, "No channel provider");
 
     shared_ptr<MyChannelRequester> channelRequester(new MyChannelRequester());
     shared_ptr<Channel> channel(channelProvider->createChannel(name, channelRequester));
     channelRequester->waitUntilConnected(timeout);
 
-    shared_ptr<MyFieldRequester> fieldRequester(new MyFieldRequester());
-    channel->getField(fieldRequester, "");
-    fieldRequester->waitUntilDone(timeout);
-
     shared_ptr<MyChannelGetRequester> channelGetRequester(new MyChannelGetRequester());
     PVStructure::shared_pointer pvRequest = CreateRequest::create()->createRequest(request);
     channel->createChannelGet(channelGetRequester, pvRequest);
     channelGetRequester->waitUntilDone(timeout);
-}
-
-void listProviders()
-{
-    cout << "Available channel providers:" << endl;
-    std::auto_ptr<ChannelProviderRegistry::stringVector_t> providers =
-            getChannelProviderRegistry()->getProviderNames();
-    for (size_t i=0; i<providers->size(); ++i)
-        cout << (i+1) << ") " << providers->at(i) << endl;
 }
 
 static void help(const char *name)
@@ -227,9 +211,7 @@ int main(int argc,char *argv[])
     try
     {
         ClientFactory::start();
-        listProviders();
-        monitor(channel, request, timeout);
-        epicsThreadSleep(5.0);
+        getValue(channel, request, timeout);
         ClientFactory::stop();
     }
     catch (std::exception &ex)
@@ -238,5 +220,6 @@ int main(int argc,char *argv[])
         PRINT_EXCEPTION2(ex, stderr);
         cout << SHOW_EXCEPTION(ex);
     }
+
     return 0;
 }
