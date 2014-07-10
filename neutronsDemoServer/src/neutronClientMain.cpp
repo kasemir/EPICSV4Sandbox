@@ -23,7 +23,7 @@ using namespace epics::pvAccess;
 
 // -- Requester Helper -----------------------------------------------------------------
 
-static void messageHelper(Requester &requester, std::string const & message, MessageType messageType)
+static void messageHelper(Requester &requester, string const & message, MessageType messageType)
 {
     cout << requester.getRequesterName()
          << " message (" << getMessageTypeName(messageType) << "): "
@@ -35,8 +35,11 @@ static void messageHelper(Requester &requester, std::string const & message, Mes
 class MyChannelRequester : public ChannelRequester
 {
 public:
-    std::string getRequesterName();
-    void message(std::string const & message,MessageType messageType);
+    string getRequesterName()
+    {   return "MyChannelRequester";  }
+    void message(string const & message,MessageType messageType)
+    {   messageHelper(*this, message, messageType); }
+
     void channelCreated(const epics::pvData::Status& status, Channel::shared_pointer const & channel);
     void channelStateChange(Channel::shared_pointer const & channel, Channel::ConnectionState connectionState);
 
@@ -48,16 +51,6 @@ public:
 private:
     Event connect_event;
 };
-
-std::string MyChannelRequester::getRequesterName()
-{
-    return "MyChannelRequester";
-}
-
-void MyChannelRequester::message(std::string const & message, MessageType messageType)
-{
-    messageHelper(*this, message, messageType);
-}
 
 void MyChannelRequester::channelCreated(const epics::pvData::Status& status, Channel::shared_pointer const & channel)
 {
@@ -73,12 +66,41 @@ void MyChannelRequester::channelStateChange(Channel::shared_pointer const & chan
         connect_event.signal();
 }
 
+// -- GetFieldRequester -----------------------------------------------------------------
+class MyFieldRequester : public GetFieldRequester
+{
+public:
+    string getRequesterName()
+    {   return "MyFieldRequester";  }
+    void message(string const & message,MessageType messageType)
+    {   messageHelper(*this, message, messageType); }
+
+    void getDone(const Status& status, FieldConstPtr const & field);
+
+    boolean waitUntilDone(double timeOut)
+    {
+        return done_event.wait(timeOut);
+    }
+
+private:
+    Event done_event;
+};
+
+void MyFieldRequester::getDone(const Status& status, FieldConstPtr const & field)
+{
+    cout << "Field type: " << field->getType() << endl;
+    done_event.signal();
+}
+
 // -- ChannelGetRequester -----------------------------------------------------------------
 class MyChannelGetRequester : public ChannelGetRequester
 {
 public:
-    std::string getRequesterName();
-    void message(std::string const & message,MessageType messageType);
+    string getRequesterName()
+    {   return "MyChannelGetRequester";  }
+    void message(string const & message,MessageType messageType)
+    {   messageHelper(*this, message, messageType); }
+
     void channelGetConnect(const epics::pvData::Status& status,
             ChannelGet::shared_pointer const & channelGet,
             epics::pvData::Structure::const_shared_pointer const & structure);
@@ -96,15 +118,6 @@ private:
     Event done_event;
 };
 
-std::string MyChannelGetRequester::getRequesterName()
-{
-    return "MyChannelGetRequester";
-}
-
-void MyChannelGetRequester::message(std::string const & message, MessageType messageType)
-{
-    messageHelper(*this, message, messageType);
-}
 
 void MyChannelGetRequester::channelGetConnect(const epics::pvData::Status& status,
         ChannelGet::shared_pointer const & channelGet,
@@ -151,6 +164,10 @@ void monitor(string const &name, string const &request, double timeout)
     shared_ptr<MyChannelRequester> channelRequester(new MyChannelRequester());
     shared_ptr<Channel> channel(channelProvider->createChannel(name, channelRequester));
     channelRequester->waitUntilConnected(timeout);
+
+    shared_ptr<MyFieldRequester> fieldRequester(new MyFieldRequester());
+    channel->getField(fieldRequester, "");
+    fieldRequester->waitUntilDone(timeout);
 
     shared_ptr<MyChannelGetRequester> channelGetRequester(new MyChannelGetRequester());
     PVStructure::shared_pointer pvRequest = CreateRequest::create()->createRequest(request);
