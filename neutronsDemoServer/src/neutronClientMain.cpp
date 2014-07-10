@@ -33,16 +33,6 @@ static void messageHelper(Requester &requester, string const & message, MessageT
 class MyChannelRequester : public ChannelRequester
 {
 public:
-    MyChannelRequester()
-    {
-        cout << "MyChannelRequester" << endl;
-    }
-
-    ~MyChannelRequester()
-    {
-        cout << "~MyChannelRequester" << endl;
-    }
-
     string getRequesterName()
     {   return "MyChannelRequester";  }
 
@@ -80,16 +70,6 @@ void MyChannelRequester::channelStateChange(Channel::shared_pointer const & chan
 class MyChannelGetRequester : public ChannelGetRequester
 {
 public:
-    MyChannelGetRequester()
-    {
-        cout << "MyChannelGetRequester" << endl;
-    }
-
-    ~MyChannelGetRequester()
-    {
-        cout << "~MyChannelGetRequester" << endl;
-    }
-
     string getRequesterName()
     {   return "MyChannelGetRequester";  }
 
