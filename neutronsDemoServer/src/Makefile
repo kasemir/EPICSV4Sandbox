@@ -13,10 +13,11 @@ neutronServerMain_LIBS += pvAccess
 neutronServerMain_LIBS += pvData
 neutronServerMain_LIBS += Com
 
-#PROD_HOST += neutronClientMain
+PROD_HOST += neutronClientMain
 neutronClientMain_SRCS += neutronClientMain.cpp
 neutronClientMain_LIBS += pvAccess
 neutronClientMain_LIBS += pvData
+neutronClientMain_LIBS += Com
 
 #===========================
 
