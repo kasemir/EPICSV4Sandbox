@@ -164,7 +164,14 @@ void getValue(string const &name, string const &request, double timeout)
 
     shared_ptr<MyChannelGetRequester> channelGetRequester(new MyChannelGetRequester());
     PVStructure::shared_pointer pvRequest = CreateRequest::create()->createRequest(request);
-    channel->createChannelGet(channelGetRequester, pvRequest);
+
+    // This took me 3 hours to figure out:
+    shared_ptr<ChannelGet> channelGet = channel->createChannelGet(channelGetRequester, pvRequest);
+    // We don't care about the value of 'channelGet', so why assign it to a variable?
+    // But when we _don't_ assign it to a shared_ptr<>, the one
+    // returned from channel->createChannelGet() will be deleted
+    // right away, and then the server(!) crashes because it receives a NULL GetRequester...
+
     channelGetRequester->waitUntilDone(timeout);
 }
 
