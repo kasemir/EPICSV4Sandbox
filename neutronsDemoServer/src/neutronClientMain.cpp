@@ -150,7 +150,7 @@ void getValue(string const &name, string const &request, double timeout)
     channelRequester->waitUntilConnected(timeout);
 
     shared_ptr<MyChannelGetRequester> channelGetRequester(new MyChannelGetRequester());
-    PVStructure::shared_pointer pvRequest = CreateRequest::create()->createRequest(request);
+    shared_ptr<PVStructure> pvRequest = CreateRequest::create()->createRequest(request);
 
     // This took me 3 hours to figure out:
     shared_ptr<ChannelGet> channelGet = channel->createChannelGet(channelGetRequester, pvRequest);
