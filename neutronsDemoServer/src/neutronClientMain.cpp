@@ -21,26 +21,36 @@ using namespace std::tr1;
 using namespace epics::pvData;
 using namespace epics::pvAccess;
 
-// -- Requester Helper -----------------------------------------------------------------
-static void messageHelper(Requester &requester, string const & message, MessageType messageType)
+// -- Requester -----------------------------------------------------------------
+class MyRequester : public virtual Requester
 {
-    cout << requester.getRequesterName()
-         << " message (" << getMessageTypeName(messageType) << "): "
+    string requester_name;
+public:
+    MyRequester(string const &requester_name)
+    : requester_name(requester_name)
+    {}
+
+    string getRequesterName()
+    {   return requester_name; }
+
+    void message(string const & message, MessageType messageType);
+};
+
+void MyRequester::message(string const & message, MessageType messageType)
+{
+    cout << getMessageTypeName(messageType) << ": "
+         << requester_name << " "
          << message << endl;
 }
 
 // -- ChannelRequester -----------------------------------------------------------------
-class MyChannelRequester : public ChannelRequester
+class MyChannelRequester : public virtual MyRequester, public virtual ChannelRequester
 {
 public:
-    string getRequesterName()
-    {   return "MyChannelRequester";  }
-
-    void message(string const & message,MessageType messageType)
-    {   messageHelper(*this, message, messageType); }
+    MyChannelRequester() : MyRequester("MyChannelRequester")
+    {}
 
     void channelCreated(const Status& status, Channel::shared_pointer const & channel);
-
     void channelStateChange(Channel::shared_pointer const & channel, Channel::ConnectionState connectionState);
 
     boolean waitUntilConnected(double timeOut)
@@ -67,14 +77,11 @@ void MyChannelRequester::channelStateChange(Channel::shared_pointer const & chan
 }
 
 // -- ChannelGetRequester -----------------------------------------------------------------
-class MyChannelGetRequester : public ChannelGetRequester
+class MyChannelGetRequester : public virtual MyRequester, public virtual ChannelGetRequester
 {
 public:
-    string getRequesterName()
-    {   return "MyChannelGetRequester";  }
-
-    void message(string const & message,MessageType messageType)
-    {   messageHelper(*this, message, messageType); }
+    MyChannelGetRequester() : MyRequester("MyChannelGetRequester")
+    {}
 
     void channelGetConnect(const Status& status,
             ChannelGet::shared_pointer const & channelGet,
