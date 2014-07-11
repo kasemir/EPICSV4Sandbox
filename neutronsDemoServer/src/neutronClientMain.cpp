@@ -21,7 +21,9 @@ using namespace std::tr1;
 using namespace epics::pvData;
 using namespace epics::pvAccess;
 
-// -- Requester -----------------------------------------------------------------
+/** Requester implementation,
+ *  used as base for all the following *Requester
+ */
 class MyRequester : public virtual Requester
 {
     string requester_name;
@@ -43,9 +45,10 @@ void MyRequester::message(string const & message, MessageType messageType)
          << message << endl;
 }
 
-// -- ChannelRequester -----------------------------------------------------------------
+/** Requester for channel and status updates */
 class MyChannelRequester : public virtual MyRequester, public virtual ChannelRequester
 {
+    Event connect_event;
 public:
     MyChannelRequester() : MyRequester("MyChannelRequester")
     {}
@@ -57,9 +60,6 @@ public:
     {
         return connect_event.wait(timeOut);
     }
-
-private:
-    Event connect_event;
 };
 
 void MyChannelRequester::channelCreated(const Status& status, Channel::shared_pointer const & channel)
@@ -76,7 +76,7 @@ void MyChannelRequester::channelStateChange(Channel::shared_pointer const & chan
         connect_event.signal();
 }
 
-// -- ChannelGetRequester -----------------------------------------------------------------
+/** Requester for 'getting' a single value */
 class MyChannelGetRequester : public virtual MyRequester, public virtual ChannelGetRequester
 {
 public:
@@ -137,7 +137,7 @@ void MyChannelGetRequester::getDone(const Status& status,
     }
 }
 
-// --------------------------------------------------------------------------
+/** Connect, get value, disconnect */
 void getValue(string const &name, string const &request, double timeout)
 {
     ChannelProvider::shared_pointer channelProvider =
