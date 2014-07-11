@@ -15,6 +15,7 @@
 #include <pv/pvData.h>
 #include <pv/clientFactory.h>
 #include <pv/pvAccess.h>
+#include <pv/monitor.h>
 
 using namespace std;
 using namespace std::tr1;
@@ -79,6 +80,7 @@ void MyChannelRequester::channelStateChange(Channel::shared_pointer const & chan
 /** Requester for 'getting' a single value */
 class MyChannelGetRequester : public virtual MyRequester, public virtual ChannelGetRequester
 {
+    Event done_event;
 public:
     MyChannelGetRequester() : MyRequester("MyChannelGetRequester")
     {}
@@ -96,9 +98,6 @@ public:
     {
         return done_event.wait(timeOut);
     }
-
-private:
-    Event done_event;
 };
 
 void MyChannelGetRequester::channelGetConnect(const Status& status,
@@ -137,6 +136,61 @@ void MyChannelGetRequester::getDone(const Status& status,
     }
 }
 
+/** Requester for 'monitoring' value changes of a channel */
+class MyMonitorRequester : public virtual MyRequester, public virtual MonitorRequester
+{
+    bool quiet;
+    Event done_event;
+    size_t updates;
+public:
+    MyMonitorRequester(bool quiet)
+    : MyRequester("MyMonitorRequester"), quiet(quiet), updates(0)
+    {}
+
+    void monitorConnect(Status const & status, MonitorPtr const & monitor, StructureConstPtr const & structure);
+    void monitorEvent(MonitorPtr const & monitor);
+    void unlisten(MonitorPtr const & monitor);
+
+    boolean waitUntilDone()
+    {
+        return done_event.wait();
+    }
+};
+
+void MyMonitorRequester::monitorConnect(Status const & status, MonitorPtr const & monitor, StructureConstPtr const & structure)
+{
+    cout << "Monitor connects, " << status << endl;
+    if (status.isSuccess())
+        monitor->start();
+}
+
+void MyMonitorRequester::monitorEvent(MonitorPtr const & monitor)
+{
+    shared_ptr<MonitorElement> update;
+    while ((update = monitor->poll()))
+    {
+        ++updates;
+        if (quiet)
+        {
+            if ((updates % 1000) == 0)
+                cout << updates << " updates" << endl;
+        }
+        else
+        {
+            cout << "Monitor: ";
+            update->pvStructurePtr->dumpValue(cout);
+            cout << endl;
+        }
+        monitor->release(update);
+    }
+}
+
+void MyMonitorRequester::unlisten(MonitorPtr const & monitor)
+{
+    cout << "Monitor unlistens" << endl;
+}
+
+
 /** Connect, get value, disconnect */
 void getValue(string const &name, string const &request, double timeout)
 {
@@ -149,8 +203,8 @@ void getValue(string const &name, string const &request, double timeout)
     shared_ptr<Channel> channel(channelProvider->createChannel(name, channelRequester));
     channelRequester->waitUntilConnected(timeout);
 
-    shared_ptr<MyChannelGetRequester> channelGetRequester(new MyChannelGetRequester());
     shared_ptr<PVStructure> pvRequest = CreateRequest::create()->createRequest(request);
+    shared_ptr<MyChannelGetRequester> channelGetRequester(new MyChannelGetRequester());
 
     // This took me 3 hours to figure out:
     shared_ptr<ChannelGet> channelGet = channel->createChannelGet(channelGetRequester, pvRequest);
@@ -162,10 +216,34 @@ void getValue(string const &name, string const &request, double timeout)
     channelGetRequester->waitUntilDone(timeout);
 }
 
+/** Monitor values */
+void doMonitor(string const &name, string const &request, double timeout, bool quiet)
+{
+    ChannelProvider::shared_pointer channelProvider =
+            getChannelProviderRegistry()->getProvider("pva");
+    if (! channelProvider)
+        THROW_EXCEPTION2(std::runtime_error, "No channel provider");
+
+    shared_ptr<MyChannelRequester> channelRequester(new MyChannelRequester());
+    shared_ptr<Channel> channel(channelProvider->createChannel(name, channelRequester));
+    channelRequester->waitUntilConnected(timeout);
+
+    shared_ptr<PVStructure> pvRequest = CreateRequest::create()->createRequest(request);
+    shared_ptr<MyMonitorRequester> monitorRequester(new MyMonitorRequester(quiet));
+
+    shared_ptr<Monitor> monitor = channel->createMonitor(monitorRequester, pvRequest);
+
+    // Wait forever..
+    monitorRequester->waitUntilDone();
+}
+
+
 static void help(const char *name)
 {
     cout << "USAGE: " << name << " [options] [channel]" << endl;
     cout << "  -h        : Help" << endl;
+    cout << "  -m        : Monitor instead of get" << endl;
+    cout << "  -q        : .. quit monitor, don't print data" << endl;
     cout << "  -r request: Request" << endl;
     cout << "  -w seconds: Wait timeout" << endl;
 }
@@ -175,9 +253,11 @@ int main(int argc,char *argv[])
     string channel = "neutrons";
     string request = "field()";
     double timeout = 2.0;
+    bool monitor = false;
+    bool quiet = false;
 
     int opt;
-    while ((opt = getopt(argc, argv, "r:w:h")) != -1)
+    while ((opt = getopt(argc, argv, "r:w:mqh")) != -1)
     {
         switch (opt)
         {
@@ -186,6 +266,12 @@ int main(int argc,char *argv[])
             break;
         case 'w':
             timeout = atof(optarg);
+            break;
+        case 'm':
+            monitor = true;
+            break;
+        case 'q':
+            quiet = true;
             break;
         case 'h':
             help(argv[0]);
@@ -205,7 +291,10 @@ int main(int argc,char *argv[])
     try
     {
         ClientFactory::start();
-        getValue(channel, request, timeout);
+        if (monitor)
+            doMonitor(channel, request, timeout, quiet);
+        else
+            getValue(channel, request, timeout);
         ClientFactory::stop();
     }
     catch (std::exception &ex)
