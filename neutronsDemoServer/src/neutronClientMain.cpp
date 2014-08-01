@@ -142,9 +142,14 @@ class MyMonitorRequester : public virtual MyRequester, public virtual MonitorReq
     bool quiet;
     Event done_event;
     size_t updates;
+    uint64 last_pulse_id;
+    uint64 missing_pulses;
+
+    void checkUpdate(shared_ptr<PVStructure> const &structure);
 public:
     MyMonitorRequester(bool quiet)
-    : MyRequester("MyMonitorRequester"), quiet(quiet), updates(0)
+    : MyRequester("MyMonitorRequester"), quiet(quiet),
+      updates(0), last_pulse_id(0), missing_pulses(0)
     {}
 
     void monitorConnect(Status const & status, MonitorPtr const & monitor, StructureConstPtr const & structure);
@@ -156,6 +161,31 @@ public:
         return done_event.wait();
     }
 };
+
+void MyMonitorRequester::checkUpdate(shared_ptr<PVStructure> const &pvStructure)
+{
+    shared_ptr<PVStructure> pulse = pvStructure->getStructureField("pulse");
+    if (! pulse)
+    {
+        cout << "No 'pulse'" << endl;
+        return;
+    }
+    shared_ptr<PVULong> value = pulse->getULongField("value");
+    if (! value)
+    {
+        cout << "No 'pulse.value'" << endl;
+        return;
+    }
+    uint64 pulse_id = value->get();
+    if (last_pulse_id != 0)
+    {
+        int missing = pulse_id - 1 - last_pulse_id;
+        if (missing > 0)
+            missing_pulses += missing;
+    }
+    last_pulse_id = pulse_id;
+}
+
 
 void MyMonitorRequester::monitorConnect(Status const & status, MonitorPtr const & monitor, StructureConstPtr const & structure)
 {
@@ -170,10 +200,11 @@ void MyMonitorRequester::monitorEvent(MonitorPtr const & monitor)
     while ((update = monitor->poll()))
     {
         ++updates;
+        checkUpdate(update->pvStructurePtr);
         if (quiet)
         {
             if ((updates % 1000) == 0)
-                cout << updates << " updates" << endl;
+                cout << updates << " updates, " << missing_pulses << " missing pulses" << endl;
         }
         else
         {
@@ -243,7 +274,7 @@ static void help(const char *name)
     cout << "USAGE: " << name << " [options] [channel]" << endl;
     cout << "  -h        : Help" << endl;
     cout << "  -m        : Monitor instead of get" << endl;
-    cout << "  -q        : .. quit monitor, don't print data" << endl;
+    cout << "  -q        : .. quietly monitor, don't print data" << endl;
     cout << "  -r request: Request" << endl;
     cout << "  -w seconds: Wait timeout" << endl;
 }
