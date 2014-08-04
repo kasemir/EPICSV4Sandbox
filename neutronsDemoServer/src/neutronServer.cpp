@@ -8,6 +8,7 @@
  *
  * @author Kay Kasemir
  */
+#include <iostream>
 #include <epicsThread.h>
 #include <pv/standardPVField.h>
 #include "neutronServer.h"
@@ -149,8 +150,10 @@ void NeutronPVRecord::generateFakeValues()
         tof[i] = id;
         pixel[i] = 10*id;
     }
-    pvTimeOfFlight->replace(freeze(tof));
-    pvPixel->replace(freeze(pixel));
+    shared_vector<const uint32> tof_data(freeze(tof));
+    shared_vector<const uint32> pixel_data(freeze(pixel));
+    pvTimeOfFlight->replace(tof_data);
+    pvPixel->replace(pixel_data);
 
     // Update timestamp
     timeStamp.getCurrent();
