@@ -31,19 +31,20 @@ void NeutronPVRecord::neutronProcessor(void *me_parm)
     while (true)
     {
         epicsThreadSleep(me->delay);
+        ++packets;
+        // Every 10 second, show how many updates we generated so far
+        if (++loops >= loops_in_10_seconds)
+        {
+            loops = 0;
+            std::cout << packets << " packets\n";
+        }
+
         me->lock();
         try
         {
-            ++packets;
             me->beginGroupPut();
             me->process();
             me->endGroupPut();
-            // Every 10 second, show how many updates we generated so far
-            if (++loops >= loops_in_10_seconds)
-            {
-                loops = 0;
-                std::cout << packets << " packets\n";
-            }
         }
         catch(...)
         {
@@ -64,17 +65,19 @@ NeutronPVRecord::shared_pointer NeutronPVRecord::create(string const & recordNam
 
     // Create the data structure that the PVRecord should use
     PVStructurePtr pvStructure = pvDataCreate->createPVStructure(
-            fieldCreate->createFieldBuilder()
-            ->addNestedStructure("pulse")
-                ->setId("uri:ev4:nt/2012/pwd:NTScalar")
-                ->add("value", pvULong)
-                ->add("protonCharge", pvDouble)
-                ->add("timeStamp", standardField->timeStamp())
-            ->endNested()
-            ->add("time_of_flight", standardField->scalarArray(pvUInt, ""))
-            ->add("pixel", standardField->scalarArray(pvUInt, ""))
-            ->createStructure()
-            );
+        fieldCreate->createFieldBuilder()
+        ->add("timeStamp", standardField->timeStamp())
+        ->add("pulse", standardField->scalar(pvULong, ""))
+        // Demo for manual setup of structure, could use
+        // add("protonCharge", standardField->scalar(pvDouble, ""))
+        ->addNestedStructure("protonCharge")
+            ->setId("uri:ev4:nt/2012/pwd:NTScalar")
+            ->add("value", pvDouble)
+        ->endNested()
+        ->add("time_of_flight", standardField->scalarArray(pvUInt, ""))
+        ->add("pixel", standardField->scalarArray(pvUInt, ""))
+        ->createStructure()
+        );
 
     NeutronPVRecord::shared_pointer pvRecord(new NeutronPVRecord(recordName, pvStructure, delay, event_count));
     if (!pvRecord->init())
@@ -99,15 +102,15 @@ bool NeutronPVRecord::init()
     initPVRecord();
 
     // Fetch pointers into the records pvData which will be used to update the values
+    if (!pvTimeStamp.attach(getPVStructure()->getSubField("timeStamp")))
+        return false;
+
     pvPulseID = getPVStructure()->getULongField("pulse.value");
     if (pvPulseID.get() == NULL)
         return false;
 
-    pvProtonCharge = getPVStructure()->getDoubleField("pulse.protonCharge");
+    pvProtonCharge = getPVStructure()->getDoubleField("protonCharge.value");
     if (pvProtonCharge.get() == NULL)
-        return false;
-
-    if (!pvTimeStamp.attach(getPVStructure()->getSubField("pulse.timeStamp")))
         return false;
 
     pvTimeOfFlight = getPVStructure()->getSubField<PVUIntArray>("time_of_flight.value");
@@ -134,7 +137,7 @@ void NeutronPVRecord::generateFakeValues()
     uint64 id = pvPulseID->get() + 1;
     pvPulseID->put(id);
 
-    // Vary a fake 'charge', somewhat based on the changing ID
+    // Vary a fake 'charge' based on the ID
     pvProtonCharge->put( (1 + id % 10)*1e8 );
 
     // Create fake { time-of-flight, pixel } events,
@@ -164,5 +167,4 @@ void NeutronPVRecord::destroy()
     PVRecord::destroy();
 }
 
-
-}}
+}} // namespace neutronServer, epics

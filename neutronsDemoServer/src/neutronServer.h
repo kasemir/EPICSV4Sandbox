@@ -22,10 +22,11 @@ namespace epics { namespace neutronServer {
 /** Serves this type of pvData:
  *
  *  structure
+ *      time_t  timeStamp // For everything in this structure
  *      NTScalar pulse
- *          ulong   value         //  eventID
- *          double  protonCharge
- *          time_t  timeStamp
+ *          ulong   value
+ *      NTScalar protonCharge
+ *          double  value
  *      NTScalarArray time_of_flight
  *          uint[]  value
  *      NTScalarArray pixel
@@ -54,12 +55,12 @@ private:
     double delay;
     size_t event_count;
 
+    epics::pvData::TimeStamp      timeStamp;
+    epics::pvData::PVTimeStamp    pvTimeStamp;
     epics::pvData::PVULongPtr     pvPulseID;
     epics::pvData::PVDoublePtr    pvProtonCharge;
-    epics::pvData::PVTimeStamp    pvTimeStamp;
     epics::pvData::PVUIntArrayPtr pvTimeOfFlight;
     epics::pvData::PVUIntArrayPtr pvPixel;
-    epics::pvData::TimeStamp      timeStamp;
 
     static void neutronProcessor(void *me_parm);
 };

@@ -186,7 +186,6 @@ void MyMonitorRequester::checkUpdate(shared_ptr<PVStructure> const &pvStructure)
     last_pulse_id = pulse_id;
 }
 
-
 void MyMonitorRequester::monitorConnect(Status const & status, MonitorPtr const & monitor, StructureConstPtr const & structure)
 {
     cout << "Monitor connects, " << status << endl;
