@@ -29,7 +29,7 @@ void NeutronPVRecord::neutronProcessor(void *me_parm)
     int loops = 0;
     int loops_in_10_seconds = int(10.0 / me->delay);
     size_t packets = 0;
-    while (true)
+    while (me->isRunning())
     {
         epicsThreadSleep(me->delay);
         ++packets;
@@ -54,6 +54,8 @@ void NeutronPVRecord::neutronProcessor(void *me_parm)
         }
         me->unlock();
     }
+    std::cout << "Processing thread exits\n";
+    me->processing_done.signal();
 }
 
 
@@ -90,7 +92,7 @@ NeutronPVRecord::NeutronPVRecord(
     string const & recordName,
     PVStructurePtr const & pvStructure,
     double delay, size_t event_count)
-: PVRecord(recordName,pvStructure), delay(delay), event_count(event_count)
+: PVRecord(recordName,pvStructure), is_running(true), delay(delay), event_count(event_count)
 {
 }
 
@@ -167,6 +169,9 @@ void NeutronPVRecord::process()
 
 void NeutronPVRecord::destroy()
 {
+    // Stop the processing thread
+    is_running = false;
+    processing_done.wait(5.0);
     PVRecord::destroy();
 }
 

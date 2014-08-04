@@ -13,6 +13,8 @@
 
 #include <shareLib.h>
 
+#include <epicsEvent.h>
+
 #include <pv/pvDatabase.h>
 #include <pv/timeStamp.h>
 #include <pv/pvTimeStamp.h>
@@ -47,11 +49,16 @@ public:
     virtual void process();
     virtual void destroy();
 
+    bool isRunning()
+    {  return is_running; }
+
 private:
     NeutronPVRecord(std::string const & recordName,
         epics::pvData::PVStructurePtr const & pvStructure,
         double delay, size_t event_count);
 
+    bool is_running;
+    epicsEvent processing_done;
     double delay;
     size_t event_count;
 
