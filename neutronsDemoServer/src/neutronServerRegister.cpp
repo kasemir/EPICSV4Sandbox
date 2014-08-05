@@ -32,9 +32,16 @@ static void createFunc(const iocshArgBuf *args)
     double delay = args[1].dval;
     size_t event_count = args[2].ival;
 
-    PVRecordPtr record = NeutronPVRecord::create(name, delay, event_count);
+    NeutronPVRecord::shared_pointer record = NeutronPVRecord::create(name);
     if (! PVDatabase::getMaster()->addRecord(record))
         cout << "Cannot create neutron record '" << name << "'" << endl;
+
+    if (delay > 0)
+    {
+        epicsThreadRunable *runnable = new DemoNeutronEventRunnable(record, delay, event_count);
+        epicsThread *thread = new epicsThread(*runnable, "processor", epicsThreadGetStackSize(epicsThreadStackMedium));
+        thread->start();
+    }
 }
 
 static void neutronServerRegister(void)

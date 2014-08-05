@@ -12,8 +12,8 @@
 #define NEUTRONSERVER_H
 
 #include <shareLib.h>
-
 #include <epicsEvent.h>
+#include <epicsThread.h>
 
 #include <pv/pvDatabase.h>
 #include <pv/timeStamp.h>
@@ -21,7 +21,7 @@
 
 namespace epics { namespace neutronServer {
 
-/** Serves this type of pvData:
+/** Record that serves this type of pvData:
  *
  *  structure
  *      time_t  timeStamp // For everything in this structure
@@ -34,42 +34,53 @@ namespace epics { namespace neutronServer {
  *      NTScalarArray pixel
  *          uint[]  value
  */
-class epicsShareClass NeutronPVRecord :
-    public epics::pvDatabase::PVRecord
+class NeutronPVRecord : public epics::pvDatabase::PVRecord
 {
 public:
     POINTER_DEFINITIONS(NeutronPVRecord);
 
-    static NeutronPVRecord::shared_pointer create(std::string const & recordName,
-                                                  double delay, size_t event_count);
+    // PVRecord methods
+    static NeutronPVRecord::shared_pointer create(std::string const & recordName);
     virtual ~NeutronPVRecord();
     virtual bool init();
-    virtual void start();
-    void generateFakeValues();
     virtual void process();
-    virtual void destroy();
 
-    bool isRunning()
-    {  return is_running; }
+    /** Update the values of the record */
+    void update(epics::pvData::uint64 id, double charge,
+                epics::pvData::shared_vector<const epics::pvData::uint32> tof,
+                epics::pvData::shared_vector<const epics::pvData::uint32> pixel);
 
 private:
     NeutronPVRecord(std::string const & recordName,
-        epics::pvData::PVStructurePtr const & pvStructure,
-        double delay, size_t event_count);
+        epics::pvData::PVStructurePtr const & pvStructure);
 
-    bool is_running;
-    epicsEvent processing_done;
-    double delay;
-    size_t event_count;
-
+    // Time of last process() call
     epics::pvData::TimeStamp      timeStamp;
+
+    // Pointers in to the records' data structure
     epics::pvData::PVTimeStamp    pvTimeStamp;
     epics::pvData::PVULongPtr     pvPulseID;
     epics::pvData::PVDoublePtr    pvProtonCharge;
     epics::pvData::PVUIntArrayPtr pvTimeOfFlight;
     epics::pvData::PVUIntArrayPtr pvPixel;
+};
 
-    static void neutronProcessor(void *me_parm);
+/** Runnable for demo events */
+class DemoNeutronEventRunnable : public epicsThreadRunable
+{
+public:
+    DemoNeutronEventRunnable(NeutronPVRecord::shared_pointer record,
+                             double delay, size_t event_count);
+    ~DemoNeutronEventRunnable();
+    void run();
+    void shutdown();
+
+private:
+    NeutronPVRecord::shared_pointer record;
+    bool is_running;
+    epicsEvent processing_done;
+    double delay;
+    size_t event_count;
 };
 
 }}

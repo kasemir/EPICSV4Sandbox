@@ -28,7 +28,7 @@
 
 
 using namespace std;
-using std::tr1::static_pointer_cast;
+using std::tr1::shared_ptr;
 using namespace epics::pvData;
 using namespace epics::pvAccess;
 using namespace epics::pvDatabase;
@@ -73,16 +73,19 @@ int main(int argc,char *argv[])
     PVDatabasePtr master = PVDatabase::getMaster();
     ChannelProviderLocalPtr channelProvider = getChannelProviderLocal();
 
-    PVRecordPtr pvRecord;
-    pvRecord = NeutronPVRecord::create("neutrons", delay, event_count);
+
+    NeutronPVRecord::shared_pointer neutrons = NeutronPVRecord::create("neutrons");
+    if (! master->addRecord(neutrons))
+        throw std::runtime_error("Cannot add record " + neutrons->getRecordName());
+
+    shared_ptr<DemoNeutronEventRunnable> runnable(new DemoNeutronEventRunnable(neutrons, delay, event_count));
+    shared_ptr<epicsThread> thread(new epicsThread(*runnable, "processor", epicsThreadGetStackSize(epicsThreadStackMedium)));
+    thread->start();
+
+    PVRecordPtr pvRecord = TraceRecord::create("traceRecordPGRPC");
     if (! master->addRecord(pvRecord))
         throw std::runtime_error("Cannot add record " + pvRecord->getRecordName());
-
-    pvRecord = TraceRecord::create("traceRecordPGRPC");
-    if (! master->addRecord(pvRecord))
-        throw std::runtime_error("Cannot add record " + pvRecord->getRecordName());
-
-    // Release pointer
+    // Release record, held by database
     pvRecord.reset();
 
     ServerContext::shared_pointer pvaServer = 
@@ -95,6 +98,7 @@ int main(int argc,char *argv[])
         if(str.compare("exit")==0) break;
 
     }
+    runnable->shutdown();
     pvaServer->shutdown();
     epicsThreadSleep(1.0);
     pvaServer->destroy();

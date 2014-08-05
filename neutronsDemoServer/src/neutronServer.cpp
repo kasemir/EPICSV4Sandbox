@@ -9,7 +9,6 @@
  * @author Kay Kasemir
  */
 #include <iostream>
-#include <epicsThread.h>
 #include <pv/standardPVField.h>
 #include "neutronServer.h"
 
@@ -20,47 +19,7 @@ using std::string;
 
 namespace epics { namespace neutronServer {
 
-/** Called by thread to 'process' the record,
- *  generating new data
- */
-void NeutronPVRecord::neutronProcessor(void *me_parm)
-{
-    NeutronPVRecord *me = (NeutronPVRecord *)me_parm;
-    int loops = 0;
-    int loops_in_10_seconds = int(10.0 / me->delay);
-    size_t packets = 0;
-    while (me->isRunning())
-    {
-        epicsThreadSleep(me->delay);
-        ++packets;
-        // Every 10 second, show how many updates we generated so far
-        if (++loops >= loops_in_10_seconds)
-        {
-            loops = 0;
-            std::cout << packets << " packets\n";
-        }
-
-        me->lock();
-        try
-        {
-            me->beginGroupPut();
-            me->process();
-            me->endGroupPut();
-        }
-        catch(...)
-        {
-            me->unlock();
-            throw;
-        }
-        me->unlock();
-    }
-    std::cout << "Processing thread exits\n";
-    me->processing_done.signal();
-}
-
-
-NeutronPVRecord::shared_pointer NeutronPVRecord::create(string const & recordName,
-        double delay, size_t event_count)
+NeutronPVRecord::shared_pointer NeutronPVRecord::create(string const & recordName)
 {
     FieldCreatePtr fieldCreate = getFieldCreate();
     StandardFieldPtr standardField = getStandardField();
@@ -82,17 +41,14 @@ NeutronPVRecord::shared_pointer NeutronPVRecord::create(string const & recordNam
         ->createStructure()
         );
 
-    NeutronPVRecord::shared_pointer pvRecord(new NeutronPVRecord(recordName, pvStructure, delay, event_count));
+    NeutronPVRecord::shared_pointer pvRecord(new NeutronPVRecord(recordName, pvStructure));
     if (!pvRecord->init())
         pvRecord.reset();
     return pvRecord;
 }
 
-NeutronPVRecord::NeutronPVRecord(
-    string const & recordName,
-    PVStructurePtr const & pvStructure,
-    double delay, size_t event_count)
-: PVRecord(recordName,pvStructure), is_running(true), delay(delay), event_count(event_count)
+NeutronPVRecord::NeutronPVRecord(string const & recordName, PVStructurePtr const & pvStructure)
+: PVRecord(recordName,pvStructure)
 {
 }
 
@@ -127,58 +83,93 @@ bool NeutronPVRecord::init()
     return true;
 }
 
-void NeutronPVRecord::start()
+void NeutronPVRecord::process()
 {
-    epicsThreadCreate("processor", epicsThreadPriorityScanHigh,
-            epicsThreadGetStackSize(epicsThreadStackMedium),
-            neutronProcessor, this);
-}
-
-void NeutronPVRecord::generateFakeValues()
-{
-    // Increment the 'ID' of the pulse
-    uint64 id = pvPulseID->get() + 1;
-    pvPulseID->put(id);
-
-    // Vary a fake 'charge' based on the ID
-    pvProtonCharge->put( (1 + id % 10)*1e8 );
-
-    // Create fake { time-of-flight, pixel } events,
-    // using the ID to get changing values
-    shared_vector<uint32> tof(event_count);
-    shared_vector<uint32> pixel(event_count);
-    for (size_t i=0; i<event_count; ++i)
-    {
-        tof[i] = id;
-        pixel[i] = 10*id;
-    }
-
-    if (! tof.unique()) // TODO Remove once crashes have been resolved
-        std::cout << "tof is not unique?!\n";
-    if (! pixel.unique())
-        std::cout << "pixel is not unique?!\n";
-
-    shared_vector<const uint32> tof_data(freeze(tof));
-    shared_vector<const uint32> pixel_data(freeze(pixel));
-    pvTimeOfFlight->replace(tof_data);
-    pvPixel->replace(pixel_data);
-
     // Update timestamp
     timeStamp.getCurrent();
     pvTimeStamp.set(timeStamp);
 }
 
-void NeutronPVRecord::process()
+void NeutronPVRecord::update(uint64 id, double charge,
+                             shared_vector<const uint32> tof,
+                             shared_vector<const uint32> pixel)
 {
-    generateFakeValues();
+    lock();
+    try
+    {
+        beginGroupPut();
+        pvPulseID->put(id);
+        pvProtonCharge->put(charge);
+        pvTimeOfFlight->replace(tof);
+        pvPixel->replace(pixel);
+        process();
+        endGroupPut();
+    }
+    catch(...)
+    {
+        unlock();
+        throw;
+    }
+    unlock();
 }
 
-void NeutronPVRecord::destroy()
+
+DemoNeutronEventRunnable::DemoNeutronEventRunnable(NeutronPVRecord::shared_pointer record,
+                                                   double delay, size_t event_count)
+  : record(record), is_running(true), delay(delay), event_count(event_count)
 {
-    // Stop the processing thread
+}
+
+DemoNeutronEventRunnable::~DemoNeutronEventRunnable()
+{
+}
+
+void DemoNeutronEventRunnable::run()
+{
+    uint64 id = 0;
+    int loops = 0;
+    int loops_in_10_seconds = int(10.0 / delay);
+    size_t packets = 0;
+    while (is_running)
+    {
+        epicsThreadSleep(delay);
+        ++packets;
+        // Every 10 second, show how many updates we generated so far
+        if (++loops >= loops_in_10_seconds)
+        {
+            loops = 0;
+            std::cout << packets << " packets\n";
+        }
+
+        // Increment the 'ID' of the pulse
+        ++id;
+
+        // Vary a fake 'charge' based on the ID
+        double charge = (1 + id % 10)*1e8;
+
+        // Create fake { time-of-flight, pixel } events,
+        // using the ID to get changing values
+        shared_vector<uint32> tof(event_count);
+        shared_vector<uint32> pixel(event_count);
+        for (size_t i=0; i<event_count; ++i)
+        {
+            tof[i] = id;
+            pixel[i] = 10*id;
+        }
+        shared_vector<const uint32> tof_data(freeze(tof));
+        shared_vector<const uint32> pixel_data(freeze(pixel));
+
+        record->update(id, charge, tof_data, pixel_data);
+    }
+    std::cout << "Processing thread exits\n";
+    processing_done.signal();
+}
+
+void DemoNeutronEventRunnable::shutdown()
+{   // Request exit from thread
     is_running = false;
     processing_done.wait(5.0);
-    PVRecord::destroy();
 }
+
 
 }} // namespace neutronServer, epics
