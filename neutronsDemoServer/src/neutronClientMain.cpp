@@ -203,7 +203,10 @@ void MyMonitorRequester::monitorEvent(MonitorPtr const & monitor)
         if (quiet)
         {
             if ((updates % 1000) == 0)
+            {
                 cout << updates << " updates, " << missing_pulses << " missing pulses" << endl;
+                missing_pulses = 0;
+            }
         }
         else
         {
