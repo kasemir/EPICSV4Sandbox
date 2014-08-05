@@ -114,17 +114,17 @@ void NeutronPVRecord::update(uint64 id, double charge,
 }
 
 
-DemoNeutronEventRunnable::DemoNeutronEventRunnable(NeutronPVRecord::shared_pointer record,
+FakeNeutronEventRunnable::FakeNeutronEventRunnable(NeutronPVRecord::shared_pointer record,
                                                    double delay, size_t event_count)
-  : record(record), is_running(true), delay(delay), event_count(event_count)
+: record(record), is_running(true), delay(delay), event_count(event_count)
 {
 }
 
-DemoNeutronEventRunnable::~DemoNeutronEventRunnable()
+FakeNeutronEventRunnable::~FakeNeutronEventRunnable()
 {
 }
 
-void DemoNeutronEventRunnable::run()
+void FakeNeutronEventRunnable::run()
 {
     uint64 id = 0;
     int loops = 0;
@@ -165,7 +165,7 @@ void DemoNeutronEventRunnable::run()
     processing_done.signal();
 }
 
-void DemoNeutronEventRunnable::shutdown()
+void FakeNeutronEventRunnable::shutdown()
 {   // Request exit from thread
     is_running = false;
     processing_done.wait(5.0);

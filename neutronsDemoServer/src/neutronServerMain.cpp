@@ -78,7 +78,7 @@ int main(int argc,char *argv[])
     if (! master->addRecord(neutrons))
         throw std::runtime_error("Cannot add record " + neutrons->getRecordName());
 
-    shared_ptr<DemoNeutronEventRunnable> runnable(new DemoNeutronEventRunnable(neutrons, delay, event_count));
+    shared_ptr<FakeNeutronEventRunnable> runnable(new FakeNeutronEventRunnable(neutrons, delay, event_count));
     shared_ptr<epicsThread> thread(new epicsThread(*runnable, "processor", epicsThreadGetStackSize(epicsThreadStackMedium)));
     thread->start();
 

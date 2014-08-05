@@ -52,7 +52,7 @@ public:
 
 private:
     NeutronPVRecord(std::string const & recordName,
-        epics::pvData::PVStructurePtr const & pvStructure);
+                    epics::pvData::PVStructurePtr const & pvStructure);
 
     // Time of last process() call
     epics::pvData::TimeStamp      timeStamp;
@@ -66,12 +66,12 @@ private:
 };
 
 /** Runnable for demo events */
-class DemoNeutronEventRunnable : public epicsThreadRunable
+class FakeNeutronEventRunnable : public epicsThreadRunable
 {
 public:
-    DemoNeutronEventRunnable(NeutronPVRecord::shared_pointer record,
+    FakeNeutronEventRunnable(NeutronPVRecord::shared_pointer record,
                              double delay, size_t event_count);
-    ~DemoNeutronEventRunnable();
+    ~FakeNeutronEventRunnable();
     void run();
     void shutdown();
 
