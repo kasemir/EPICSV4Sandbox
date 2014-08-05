@@ -152,6 +152,12 @@ void NeutronPVRecord::generateFakeValues()
         tof[i] = id;
         pixel[i] = 10*id;
     }
+
+    if (! tof.unique()) // TODO Remove once crashes have been resolved
+        std::cout << "tof is not unique?!\n";
+    if (! pixel.unique())
+        std::cout << "pixel is not unique?!\n";
+
     shared_vector<const uint32> tof_data(freeze(tof));
     shared_vector<const uint32> pixel_data(freeze(pixel));
     pvTimeOfFlight->replace(tof_data);
