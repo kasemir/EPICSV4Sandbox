@@ -17,7 +17,7 @@ iocInit()
 dbl
 epicsThreadSleep(1.0)
 
-neutronServerCreateRecord("neutrons", 0.001, 10)
+neutronServerCreateRecord("neutrons", 0.01, 200000)
 
 startPVAServer
 
