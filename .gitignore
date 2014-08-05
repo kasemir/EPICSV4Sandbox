@@ -5,4 +5,5 @@ lib/
 include/
 db/
 dbd/
+envPaths
 
