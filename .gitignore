@@ -1,5 +1,8 @@
 
 O.*/
 bin/
+lib/
 include/
+db/
+dbd/
 

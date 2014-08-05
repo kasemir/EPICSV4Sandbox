@@ -5,6 +5,13 @@ include $(TOP)/configure/CONFIG
 #  ADD MACRO DEFINITIONS AFTER THIS LINE
 #=============================
 
+# Library for IOC
+DBD += neutronServer.dbd
+LIBRARY_IOC += neutronServer
+neutronServer_SRCS += neutronServer.cpp
+neutronServer_SRCS += neutronServerRegister.cpp
+
+# Standalone demo server
 PROD_HOST += neutronServerMain
 neutronServerMain_SRCS += neutronServerMain.cpp
 neutronServerMain_SRCS += neutronServer.cpp
@@ -13,6 +20,7 @@ neutronServerMain_LIBS += pvAccess
 neutronServerMain_LIBS += pvData
 neutronServerMain_LIBS += Com
 
+# Standalone client that checks sequence of events from demo server
 PROD_HOST += neutronClientMain
 neutronClientMain_SRCS += neutronClientMain.cpp
 neutronClientMain_LIBS += pvAccess

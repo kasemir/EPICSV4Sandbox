@@ -1,0 +1,15 @@
+record(stringout, "$(P):version")
+{
+   field(VAL, "0.1")
+}
+
+record(calc, "$(P):counter")
+{
+    field(SCAN, "1 second")
+    field(CALC, "(A<B)?(A+C):D")
+    field(INPA, "$(P):counter")
+    field(INPB, "9")
+    field(INPC, "1")
+    field(INPD, "0")
+    field(EGU, "Counts")
+}
