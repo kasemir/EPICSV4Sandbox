@@ -141,7 +141,7 @@ class MyMonitorRequester : public virtual MyRequester, public virtual MonitorReq
 {
     bool quiet;
     Event done_event;
-    size_t updates;
+    uint64 updates;
     uint64 last_pulse_id;
     uint64 missing_pulses;
 
@@ -204,8 +204,11 @@ void MyMonitorRequester::monitorEvent(MonitorPtr const & monitor)
         {
             if ((updates % 1000) == 0)
             {
-                cout << updates << " updates, " << missing_pulses << " missing pulses" << endl;
+                size_t expected = updates + missing_pulses;
+                double received_perc = 100.0 * (expected - missing_pulses) / expected;
+                cout << updates << " updates, " << missing_pulses << " missing pulses, received " << fixed << setprecision(1) << received_perc << "%" << endl;
                 missing_pulses = 0;
+                updates = 0;
             }
         }
         else
