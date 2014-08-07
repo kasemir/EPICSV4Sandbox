@@ -129,7 +129,7 @@ void FakeNeutronEventRunnable::run()
     uint64 id = 0;
     int loops = 0;
     int loops_in_10_seconds = int(10.0 / delay);
-    size_t packets = 0;
+    size_t packets = 0, slow = 0;
 
     epicsTimeStamp last_run, next_run;
     epicsTimeGetCurrent(&last_run);
@@ -146,7 +146,7 @@ void FakeNeutronEventRunnable::run()
         if (sleep >= 0)
             epicsThreadSleep(sleep);
         else
-            std::cout << "Too slow to send\n";
+            ++slow;
 
         // Mark this run
         epicsTimeGetCurrent(&last_run);
@@ -155,8 +155,9 @@ void FakeNeutronEventRunnable::run()
         // Every 10 second, show how many updates we generated so far
         if (++loops >= loops_in_10_seconds)
         {
+            std::cout << packets << " packets, " << slow << " times slow\n";
             loops = 0;
-            std::cout << packets << " packets\n";
+            slow = 0;
         }
 
         // Increment the 'ID' of the pulse
