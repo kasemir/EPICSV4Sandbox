@@ -253,7 +253,7 @@ void getValue(string const &name, string const &request, double timeout)
 }
 
 /** Monitor values */
-void doMonitor(string const &name, string const &request, double timeout, bool quiet)
+void doMonitor(string const &name, string const &request, double timeout, short priority, bool quiet)
 {
     ChannelProvider::shared_pointer channelProvider =
             getChannelProviderRegistry()->getProvider("pva");
@@ -261,7 +261,7 @@ void doMonitor(string const &name, string const &request, double timeout, bool q
         THROW_EXCEPTION2(std::runtime_error, "No channel provider");
 
     shared_ptr<MyChannelRequester> channelRequester(new MyChannelRequester());
-    shared_ptr<Channel> channel(channelProvider->createChannel(name, channelRequester));
+    shared_ptr<Channel> channel(channelProvider->createChannel(name, channelRequester, priority));
     channelRequester->waitUntilConnected(timeout);
 
     shared_ptr<PVStructure> pvRequest = CreateRequest::create()->createRequest(request);
@@ -277,23 +277,25 @@ void doMonitor(string const &name, string const &request, double timeout, bool q
 static void help(const char *name)
 {
     cout << "USAGE: " << name << " [options] [channel]" << endl;
-    cout << "  -h        : Help" << endl;
-    cout << "  -m        : Monitor instead of get" << endl;
-    cout << "  -q        : .. quietly monitor, don't print data" << endl;
-    cout << "  -r request: Request" << endl;
-    cout << "  -w seconds: Wait timeout" << endl;
+    cout << "  -h         : Help" << endl;
+    cout << "  -m         : Monitor instead of get" << endl;
+    cout << "  -q         : .. quietly monitor, don't print data" << endl;
+    cout << "  -r request : Request" << endl;
+    cout << "  -w seconds : Wait timeout" << endl;
+    cout << "  -p priority: Priority, 0..99, default 0" << endl;
 }
 
 int main(int argc,char *argv[])
 {
     string channel = "neutrons";
-    string request = "field()";
+    string request = "record[queueSize=100]field()";
     double timeout = 2.0;
     bool monitor = false;
     bool quiet = false;
+    short priority = ChannelProvider::PRIORITY_DEFAULT;
 
     int opt;
-    while ((opt = getopt(argc, argv, "r:w:mqh")) != -1)
+    while ((opt = getopt(argc, argv, "r:w:p:mqh")) != -1)
     {
         switch (opt)
         {
@@ -302,6 +304,9 @@ int main(int argc,char *argv[])
             break;
         case 'w':
             timeout = atof(optarg);
+            break;
+        case 'p':
+            priority = atoi(optarg);
             break;
         case 'm':
             monitor = true;
@@ -320,15 +325,16 @@ int main(int argc,char *argv[])
     if (optind < argc)
         channel = argv[optind];
 
-    cout << "Channel: " << channel << endl;
-    cout << "Request: " << request << endl;
-    cout << "Wait:    " << timeout << " sec" << endl;
+    cout << "Channel:  " << channel << endl;
+    cout << "Request:  " << request << endl;
+    cout << "Wait:     " << timeout << " sec" << endl;
+    cout << "Priority: " << priority << endl;
 
     try
     {
         ClientFactory::start();
         if (monitor)
-            doMonitor(channel, request, timeout, quiet);
+            doMonitor(channel, request, timeout, priority, quiet);
         else
             getValue(channel, request, timeout);
         ClientFactory::stop();
