@@ -170,11 +170,18 @@ void FakeNeutronEventRunnable::run()
         // using the ID to get changing values
         shared_vector<uint32> tof(event_count);
         shared_vector<uint32> pixel(event_count);
+        // Set elements via [] operator of shared_vector
         for (size_t i=0; i<event_count; ++i)
-        {
             tof[i] = id;
-            pixel[i] = 10*id;
-        }
+        // Set elements via direct access to array memory,
+        // which is faster than the [] operator, based on
+        // periodically pausing in the debugger and noting
+        // the current instruction
+        uint32 value = id * 10;
+        uint32 *data = pixel.dataPtr().get();
+        for (size_t i=0; i<event_count; ++i)
+            *(data++) = value;
+
         shared_vector<const uint32> tof_data(freeze(tof));
         shared_vector<const uint32> pixel_data(freeze(pixel));
 

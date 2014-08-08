@@ -39,7 +39,7 @@ static void createFunc(const iocshArgBuf *args)
     if (delay > 0)
     {
         epicsThreadRunable *runnable = new FakeNeutronEventRunnable(record, delay, event_count);
-        epicsThread *thread = new epicsThread(*runnable, "processor", epicsThreadGetStackSize(epicsThreadStackMedium));
+        epicsThread *thread = new epicsThread(*runnable, "FakeNeutrons", epicsThreadGetStackSize(epicsThreadStackMedium));
         thread->start();
     }
 }
