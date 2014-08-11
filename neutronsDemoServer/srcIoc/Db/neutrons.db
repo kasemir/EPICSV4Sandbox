@@ -13,3 +13,21 @@ record(calc, "$(P):counter")
     field(INPD, "0")
     field(EGU, "Counts")
 }
+
+record(ao, "$(P):delay")
+{
+    field(DTYP, "Demo Neutron Delay")
+    field(DOL,  "1.00")
+    field(PREC, "2")
+    field(EGU,  "seconds")
+    field(PINI, "YES")
+}
+
+record(ao, "$(P):count")
+{
+    field(DTYP, "Demo Neutron Count")
+    field(DOL,  "10")
+    field(EGU,  "events")
+    field(PINI, "YES")
+}
+    

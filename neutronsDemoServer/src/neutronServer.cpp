@@ -191,6 +191,16 @@ void FakeNeutronEventRunnable::run()
     processing_done.signal();
 }
 
+void FakeNeutronEventRunnable::setDelay(double seconds)
+{   // No locking..
+    delay = seconds;
+}
+
+void FakeNeutronEventRunnable::setCount(size_t count)
+{   // No locking..
+    event_count = count;
+}
+
 void FakeNeutronEventRunnable::shutdown()
 {   // Request exit from thread
     is_running = false;

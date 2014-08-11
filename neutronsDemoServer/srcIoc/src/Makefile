@@ -6,16 +6,11 @@ include $(TOP)/configure/CONFIG
 #=============================
 
 DBD += neutrons.dbd
-neutrons_DBD += base.dbd
-neutrons_DBD += PVAClientRegister.dbd
-neutrons_DBD += PVAServerRegister.dbd
-neutrons_DBD += registerChannelProviderLocal.dbd
-neutrons_DBD += dbPv.dbd
-neutrons_DBD += neutronServer.dbd
 
 PROD_IOC += neutrons
 
 # <name>_registerRecordDeviceDriver.cpp will be created from <name>.dbd
+neutrons_SRCS += devNeutrons.cpp
 neutrons_SRCS += neutrons_registerRecordDeviceDriver.cpp
 neutrons_SRCS_DEFAULT += neutronsMain.cpp
 neutrons_SRCS_vxWorks += -nil-

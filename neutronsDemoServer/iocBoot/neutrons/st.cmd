@@ -17,7 +17,11 @@ iocInit()
 dbl
 epicsThreadSleep(1.0)
 
-neutronServerCreateRecord("neutrons", 0.01, 200000)
+# When not loading records to control the V4 "neutrons" server,
+# this call can be used as an alternative.
+# The events created that way can not be configured at runtime
+# via V3 records!
+# neutronServerCreateRecord("neutrons", 0.01, 200000)
 
 startPVAServer
 

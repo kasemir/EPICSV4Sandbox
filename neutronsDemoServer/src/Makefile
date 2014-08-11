@@ -6,6 +6,7 @@ include $(TOP)/configure/CONFIG
 #=============================
 
 # Library for IOC
+INC += neutronServer.h
 DBD += neutronServer.dbd
 LIBRARY_IOC += neutronServer
 neutronServer_SRCS += neutronServer.cpp

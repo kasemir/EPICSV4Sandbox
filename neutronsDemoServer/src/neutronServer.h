@@ -73,8 +73,9 @@ public:
                              double delay, size_t event_count);
     ~FakeNeutronEventRunnable();
     void run();
+    void setDelay(double seconds);
+    void setCount(size_t count);
     void shutdown();
-
 private:
     NeutronPVRecord::shared_pointer record;
     bool is_running;
