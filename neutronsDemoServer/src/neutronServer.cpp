@@ -127,36 +127,32 @@ FakeNeutronEventRunnable::~FakeNeutronEventRunnable()
 void FakeNeutronEventRunnable::run()
 {
     uint64 id = 0;
-    int loops = 0;
-    int loops_in_10_seconds = int(10.0 / delay);
     size_t packets = 0, slow = 0;
 
-    epicsTimeStamp last_run, next_run;
-    epicsTimeGetCurrent(&last_run);
+    epicsTime last_run(epicsTime::getCurrent());
+    epicsTime next_log(last_run);
+    epicsTime next_run;
     while (is_running)
     {
         // Compute time for next run
-        next_run = last_run;
-        epicsTimeAddSeconds(&next_run, delay);
+        next_run = last_run + delay;
 
         // Wait until then
-        epicsTimeStamp now;
-        epicsTimeGetCurrent(&now);
-        double sleep = epicsTimeDiffInSeconds(&next_run, &now);
+        double sleep = next_run - epicsTime::getCurrent();
         if (sleep >= 0)
             epicsThreadSleep(sleep);
         else
             ++slow;
 
         // Mark this run
-        epicsTimeGetCurrent(&last_run);
+        last_run = epicsTime::getCurrent();
         ++packets;
 
         // Every 10 second, show how many updates we generated so far
-        if (++loops >= loops_in_10_seconds)
+        if (last_run > next_log)
         {
+            next_log = last_run + 10.0;
             std::cout << packets << " packets, " << slow << " times slow\n";
-            loops = 0;
             slow = 0;
         }
 
