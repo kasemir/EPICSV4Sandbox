@@ -102,6 +102,11 @@ void NeutronPVRecord::update(uint64 id, double charge,
         pvProtonCharge->put(charge);
         pvTimeOfFlight->replace(tof);
         pvPixel->replace(pixel);
+
+        // TODO Create server-side overrun by updating same field
+        // multiple times within one 'group put'
+        // pvPulseID->put(id);
+
         process();
         endGroupPut();
     }
@@ -182,6 +187,10 @@ void FakeNeutronEventRunnable::run()
         shared_vector<const uint32> pixel_data(freeze(pixel));
 
         record->update(id, charge, tof_data, pixel_data);
+        // TODO Overflow the server queue by posting several updates.
+        // For client request "record[queueSize=2]field()", this causes overrun.
+        // For queueSize=3 it's fine.
+        // record->update(id, charge, tof_data, pixel_data);
     }
     std::cout << "Processing thread exits\n";
     processing_done.signal();

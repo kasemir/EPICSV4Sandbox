@@ -9,6 +9,7 @@
 #include <iostream>
 
 #include <epicsThread.h>
+#include <epicsTime.h>
 #include <pv/epicsException.h>
 #include <pv/createRequest.h>
 #include <pv/event.h>
@@ -146,6 +147,7 @@ class MyMonitorRequester : public virtual MyRequester, public virtual MonitorReq
     bool quiet;
     Event done_event;
 
+    epicsTime next_run;
 #   ifdef TIME_IT
     NanoTimer value_timer;
 #   endif
@@ -159,6 +161,7 @@ class MyMonitorRequester : public virtual MyRequester, public virtual MonitorReq
 public:
     MyMonitorRequester(bool quiet)
     : MyRequester("MyMonitorRequester"), quiet(quiet),
+      next_run(epicsTime::getCurrent()),
       value_offset(-1), updates(0), overruns(0), last_pulse_id(0), missing_pulses(0)
     {}
 
@@ -230,6 +233,9 @@ void MyMonitorRequester::monitorEvent(MonitorPtr const & monitor)
     shared_ptr<MonitorElement> update;
     while ((update = monitor->poll()))
     {
+        // TODO Simulate slow client -> overruns on client side
+        // epicsThreadSleep(0.1);
+
         ++updates;
         checkUpdate(update->pvStructurePtr);
         // update->changedBitSet indicates which elements have changed.
@@ -239,10 +245,10 @@ void MyMonitorRequester::monitorEvent(MonitorPtr const & monitor)
             ++overruns;
         if (quiet)
         {
-            if ((updates % 1000) == 0)
+            epicsTime now(epicsTime::getCurrent());
+            if (now >= next_run)
             {
-                size_t expected = updates + missing_pulses;
-                double received_perc = 100.0 * (expected - missing_pulses) / expected;
+                double received_perc = 100.0 * updates / (updates + missing_pulses);
                 cout << updates << " updates, "
                      << overruns << " overruns, "
                      << missing_pulses << " missing pulses, "
@@ -255,6 +261,8 @@ void MyMonitorRequester::monitorEvent(MonitorPtr const & monitor)
 #               ifdef TIME_IT
                 cout << "Time for value lookup: " << value_timer << endl;
 #               endif
+
+                next_run = now + 10.0;
             }
         }
         else
