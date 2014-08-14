@@ -17,6 +17,8 @@
 #include <pv/pvAccess.h>
 #include <pv/monitor.h>
 
+#include "nanoTimer.h"
+
 using namespace std;
 using namespace std::tr1;
 using namespace epics::pvData;
@@ -142,6 +144,7 @@ class MyMonitorRequester : public virtual MyRequester, public virtual MonitorReq
     bool quiet;
     Event done_event;
 
+    NanoTimer value_timer;
     size_t value_offset;
     uint64 updates;
     uint64 last_pulse_id;
@@ -166,16 +169,22 @@ public:
 
 void MyMonitorRequester::checkUpdate(shared_ptr<PVStructure> const &pvStructure)
 {
+    value_timer.start();
+
+    // Time for value lookup when re-using offset: 2ms
     if (value_offset == (size_t)-1)
         value_offset = pvStructure->getULongField("pulse.value")->getFieldOffset();
     shared_ptr<PVULong> value = dynamic_pointer_cast<PVULong>(pvStructure->getSubField(value_offset));
 
-//    shared_ptr<PVULong> value = pvStructure->getULongField("pulse.value");
+    // Compare: Time for value lookup when using name: 12ms
+    // shared_ptr<PVULong> value = pvStructure->getULongField("pulse.value");
     if (! value)
     {
         cout << "No 'pulse.value'" << endl;
         return;
     }
+
+    value_timer.stop();
 
     uint64 pulse_id = value->get();
     if (last_pulse_id != 0)
@@ -227,6 +236,8 @@ void MyMonitorRequester::monitorEvent(MonitorPtr const & monitor)
                 cout << updates << " updates, " << missing_pulses << " missing pulses, received " << fixed << setprecision(1) << received_perc << "%" << endl;
                 missing_pulses = 0;
                 updates = 0;
+
+                cout << "Time for value lookup: " << value_timer << endl;
             }
         }
         else
