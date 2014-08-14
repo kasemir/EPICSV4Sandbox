@@ -87,7 +87,7 @@ void NeutronPVRecord::process()
 {
     // Update timestamp
     timeStamp.getCurrent();
-    //pvTimeStamp.set(timeStamp);
+    pvTimeStamp.set(timeStamp);
 }
 
 void NeutronPVRecord::update(uint64 id, double charge,
@@ -99,9 +99,9 @@ void NeutronPVRecord::update(uint64 id, double charge,
     {
         beginGroupPut();
         pvPulseID->put(id);
-        //pvProtonCharge->put(charge);
+        pvProtonCharge->put(charge);
         pvTimeOfFlight->replace(tof);
-        //pvPixel->replace(pixel);
+        pvPixel->replace(pixel);
         process();
         endGroupPut();
     }
