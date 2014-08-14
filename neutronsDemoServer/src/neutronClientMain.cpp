@@ -17,7 +17,9 @@
 #include <pv/pvAccess.h>
 #include <pv/monitor.h>
 
+#ifdef TIME_IT
 #include "nanoTimer.h"
+#endif
 
 using namespace std;
 using namespace std::tr1;
@@ -144,7 +146,9 @@ class MyMonitorRequester : public virtual MyRequester, public virtual MonitorReq
     bool quiet;
     Event done_event;
 
+#   ifdef TIME_IT
     NanoTimer value_timer;
+#   endif
     size_t value_offset;
     uint64 updates;
     uint64 last_pulse_id;
@@ -169,11 +173,11 @@ public:
 
 void MyMonitorRequester::checkUpdate(shared_ptr<PVStructure> const &pvStructure)
 {
+#   ifdef TIME_IT
     value_timer.start();
+#   endif
 
     // Time for value lookup when re-using offset: 2ms
-    if (value_offset == (size_t)-1)
-        value_offset = pvStructure->getULongField("pulse.value")->getFieldOffset();
     shared_ptr<PVULong> value = dynamic_pointer_cast<PVULong>(pvStructure->getSubField(value_offset));
 
     // Compare: Time for value lookup when using name: 12ms
@@ -184,7 +188,9 @@ void MyMonitorRequester::checkUpdate(shared_ptr<PVStructure> const &pvStructure)
         return;
     }
 
+#   ifdef TIME_IT
     value_timer.stop();
+#   endif
 
     uint64 pulse_id = value->get();
     if (last_pulse_id != 0)
@@ -201,20 +207,18 @@ void MyMonitorRequester::monitorConnect(Status const & status, MonitorPtr const 
     cout << "Monitor connects, " << status << endl;
     if (status.isSuccess())
     {
-        // Check the structure
-        // TODO Remember the structure, obtain pulse.value offset from introspection API instead of pvValue API?
-        StructureConstPtr pulse = dynamic_pointer_cast<const Structure>(structure->getField("pulse"));
-        if (! pulse)
-        {
-            cout << "No 'pulse' structure" << endl;
-            return;
-        }
-        shared_ptr<const Scalar> value = dynamic_pointer_cast<const Scalar>(pulse->getField("value"));
-        if (! value  &&  value->getScalarType() == pvULong)
+        // Check the structure by using only the Structure API?
+        // Need to navigate the hierarchy, won't get the overall PVStructure offset.
+        // Easier: Create temporary PVStructure
+        PVStructurePtr pvStructure = getPVDataCreate()->createPVStructure(structure);
+        shared_ptr<PVULong> value = pvStructure->getULongField("pulse.value");
+        if (! value)
         {
             cout << "No 'pulse.value' ULong" << endl;
             return;
         }
+        value_offset = value->getFieldOffset();
+        // pvStructure is disposed; keep value_offset to read data from monitor's pvStructure
 
         monitor->start();
     }
@@ -237,7 +241,9 @@ void MyMonitorRequester::monitorEvent(MonitorPtr const & monitor)
                 missing_pulses = 0;
                 updates = 0;
 
+#               ifdef TIME_IT
                 cout << "Time for value lookup: " << value_timer << endl;
+#               endif
             }
         }
         else
