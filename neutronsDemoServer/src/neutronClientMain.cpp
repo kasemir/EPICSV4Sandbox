@@ -141,6 +141,8 @@ class MyMonitorRequester : public virtual MyRequester, public virtual MonitorReq
 {
     bool quiet;
     Event done_event;
+
+    size_t value_offset;
     uint64 updates;
     uint64 last_pulse_id;
     uint64 missing_pulses;
@@ -149,7 +151,7 @@ class MyMonitorRequester : public virtual MyRequester, public virtual MonitorReq
 public:
     MyMonitorRequester(bool quiet)
     : MyRequester("MyMonitorRequester"), quiet(quiet),
-      updates(0), last_pulse_id(0), missing_pulses(0)
+      value_offset(-1), updates(0), last_pulse_id(0), missing_pulses(0)
     {}
 
     void monitorConnect(Status const & status, MonitorPtr const & monitor, StructureConstPtr const & structure);
@@ -164,18 +166,17 @@ public:
 
 void MyMonitorRequester::checkUpdate(shared_ptr<PVStructure> const &pvStructure)
 {
-    shared_ptr<PVStructure> pulse = pvStructure->getStructureField("pulse");
-    if (! pulse)
-    {
-        cout << "No 'pulse'" << endl;
-        return;
-    }
-    shared_ptr<PVULong> value = pulse->getULongField("value");
+    if (value_offset == (size_t)-1)
+        value_offset = pvStructure->getULongField("pulse.value")->getFieldOffset();
+    shared_ptr<PVULong> value = dynamic_pointer_cast<PVULong>(pvStructure->getSubField(value_offset));
+
+//    shared_ptr<PVULong> value = pvStructure->getULongField("pulse.value");
     if (! value)
     {
         cout << "No 'pulse.value'" << endl;
         return;
     }
+
     uint64 pulse_id = value->get();
     if (last_pulse_id != 0)
     {
@@ -190,7 +191,24 @@ void MyMonitorRequester::monitorConnect(Status const & status, MonitorPtr const 
 {
     cout << "Monitor connects, " << status << endl;
     if (status.isSuccess())
+    {
+        // Check the structure
+        // TODO Remember the structure, obtain pulse.value offset from introspection API instead of pvValue API?
+        StructureConstPtr pulse = dynamic_pointer_cast<const Structure>(structure->getField("pulse"));
+        if (! pulse)
+        {
+            cout << "No 'pulse' structure" << endl;
+            return;
+        }
+        shared_ptr<const Scalar> value = dynamic_pointer_cast<const Scalar>(pulse->getField("value"));
+        if (! value  &&  value->getScalarType() == pvULong)
+        {
+            cout << "No 'pulse.value' ULong" << endl;
+            return;
+        }
+
         monitor->start();
+    }
 }
 
 void MyMonitorRequester::monitorEvent(MonitorPtr const & monitor)
@@ -213,7 +231,11 @@ void MyMonitorRequester::monitorEvent(MonitorPtr const & monitor)
         }
         else
         {
-            cout << "Monitor: ";
+            cout << "Monitor:\n";
+
+            cout << "Changed: " << *update->changedBitSet.get() << endl;
+            cout << "Overrun: " << *update->overrunBitSet.get() << endl;
+
             update->pvStructurePtr->dumpValue(cout);
             cout << endl;
         }
@@ -233,7 +255,7 @@ void getValue(string const &name, string const &request, double timeout)
     ChannelProvider::shared_pointer channelProvider =
             getChannelProviderRegistry()->getProvider("pva");
     if (! channelProvider)
-        THROW_EXCEPTION2(std::runtime_error, "No channel provider");
+        THROW_EXCEPTION2(runtime_error, "No channel provider");
 
     shared_ptr<MyChannelRequester> channelRequester(new MyChannelRequester());
     shared_ptr<Channel> channel(channelProvider->createChannel(name, channelRequester));
@@ -258,7 +280,7 @@ void doMonitor(string const &name, string const &request, double timeout, short 
     ChannelProvider::shared_pointer channelProvider =
             getChannelProviderRegistry()->getProvider("pva");
     if (! channelProvider)
-        THROW_EXCEPTION2(std::runtime_error, "No channel provider");
+        THROW_EXCEPTION2(runtime_error, "No channel provider");
 
     shared_ptr<MyChannelRequester> channelRequester(new MyChannelRequester());
     shared_ptr<Channel> channel(channelProvider->createChannel(name, channelRequester, priority));
@@ -339,7 +361,7 @@ int main(int argc,char *argv[])
             getValue(channel, request, timeout);
         ClientFactory::stop();
     }
-    catch (std::exception &ex)
+    catch (exception &ex)
     {
         fprintf(stderr, "Exception: %s\n", ex.what());
         PRINT_EXCEPTION2(ex, stderr);
