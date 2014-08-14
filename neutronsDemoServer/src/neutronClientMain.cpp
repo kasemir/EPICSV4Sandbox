@@ -151,6 +151,7 @@ class MyMonitorRequester : public virtual MyRequester, public virtual MonitorReq
 #   endif
     size_t value_offset;
     uint64 updates;
+    uint64 overruns;
     uint64 last_pulse_id;
     uint64 missing_pulses;
 
@@ -158,7 +159,7 @@ class MyMonitorRequester : public virtual MyRequester, public virtual MonitorReq
 public:
     MyMonitorRequester(bool quiet)
     : MyRequester("MyMonitorRequester"), quiet(quiet),
-      value_offset(-1), updates(0), last_pulse_id(0), missing_pulses(0)
+      value_offset(-1), updates(0), overruns(0), last_pulse_id(0), missing_pulses(0)
     {}
 
     void monitorConnect(Status const & status, MonitorPtr const & monitor, StructureConstPtr const & structure);
@@ -231,13 +232,23 @@ void MyMonitorRequester::monitorEvent(MonitorPtr const & monitor)
     {
         ++updates;
         checkUpdate(update->pvStructurePtr);
+        // update->changedBitSet indicates which elements have changed.
+        // update->overrunBitSet indicates which elements have changed more than once,
+        // i.e. we missed one (or more !) updates.
+        if (! update->overrunBitSet->isEmpty())
+            ++overruns;
         if (quiet)
         {
             if ((updates % 1000) == 0)
             {
                 size_t expected = updates + missing_pulses;
                 double received_perc = 100.0 * (expected - missing_pulses) / expected;
-                cout << updates << " updates, " << missing_pulses << " missing pulses, received " << fixed << setprecision(1) << received_perc << "%" << endl;
+                cout << updates << " updates, "
+                     << overruns << " overruns, "
+                     << missing_pulses << " missing pulses, "
+                     << "received " << fixed << setprecision(1) << received_perc << "%"
+                     << endl;
+                overruns = 0;
                 missing_pulses = 0;
                 updates = 0;
 
