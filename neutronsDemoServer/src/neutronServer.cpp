@@ -16,7 +16,7 @@
 using namespace epics::pvData;
 using namespace epics::pvDatabase;
 using namespace std;
-using std::tr1::static_pointer_cast;
+using namespace std::tr1;
 
 namespace epics { namespace neutronServer {
 
@@ -120,6 +120,88 @@ void NeutronPVRecord::update(uint64 id, double charge,
 }
 
 
+// When creating a large demo data arrays,
+// the two arrays can be filled in separate threads / CPU cores
+
+/** Runnable that creates a time-of-flight array */
+class TimeOfFlightRunnable : public epicsThreadRunable
+{
+public:
+    TimeOfFlightRunnable();
+    void run();
+
+    /** Start collecting events (fill array with simulated data) */
+    void createEvents(size_t event_count, uint64 id);
+
+    /** Wait for data to be filled and return it */
+    shared_vector<const uint32> getEvents();
+
+    /** Exit the runnable and thus thread */
+    void shutdown();
+private:
+    /** Should thread run? */
+    bool do_run;
+    /** Did thread exit? */
+    epicsEvent thread_exited;
+
+    /** Parameters for new data request: How many events */
+    size_t event_count;
+    /** Parameters for new data request: Used to create dummy events */
+    uint64 id;
+    /** Has new request been submitted? */
+    epicsEvent new_request;
+
+    /** Result of a request for data */
+    shared_vector<const uint32> tof_data;
+    /** Signaled when tof_data has been updated */
+    epicsEvent done_processing;
+};
+
+TimeOfFlightRunnable::TimeOfFlightRunnable()
+: do_run(true), event_count(0), id(0)
+{
+}
+
+void TimeOfFlightRunnable::run()
+{
+    while (do_run)
+    {
+        if (! new_request.wait(0.5))
+            continue; // check is_running, wait again
+
+        // Create fake data
+        shared_vector<uint32> tof(event_count);
+        fill(tof.begin(), tof.end(), id);
+        tof_data = freeze(tof);
+
+        // Signal that we're done
+        done_processing.signal();
+    }
+    thread_exited.signal();
+}
+
+void TimeOfFlightRunnable::createEvents(size_t event_count, uint64 id)
+{
+    this->event_count = event_count;
+    this->id = id;
+    new_request.signal();
+}
+
+shared_vector<const uint32> TimeOfFlightRunnable::getEvents()
+{
+    // Wait that we're done
+    done_processing.wait();
+    return tof_data;
+}
+
+void TimeOfFlightRunnable::shutdown()
+{   // Request exit from thread
+    do_run = false;
+    thread_exited.wait(5.0);
+}
+
+
+
 FakeNeutronEventRunnable::FakeNeutronEventRunnable(NeutronPVRecord::shared_pointer record,
                                                    double delay, size_t event_count)
 : record(record), is_running(true), delay(delay), event_count(event_count)
@@ -132,6 +214,10 @@ FakeNeutronEventRunnable::~FakeNeutronEventRunnable()
 
 void FakeNeutronEventRunnable::run()
 {
+    shared_ptr<TimeOfFlightRunnable> tof_runnable(new TimeOfFlightRunnable());
+    shared_ptr<epicsThread> tof_thread(new epicsThread(*tof_runnable, "tof_processor", epicsThreadGetStackSize(epicsThreadStackMedium)));
+    tof_thread->start();
+
     uint64 id = 0;
     size_t packets = 0, slow = 0;
 
@@ -174,47 +260,50 @@ void FakeNeutronEventRunnable::run()
 
         // Create fake { time-of-flight, pixel } events,
         // using the ID to get changing values
-        shared_vector<uint32> tof(event_count);
+        // TOF created in parallel thread, pixel in this thread
+        tof_runnable->createEvents(event_count, id);
+
         shared_vector<uint32> pixel(event_count);
 
         // In reality, each event would have a different value,
         // which is simulated a little bit by actually looping over
         // each element.
+        uint32 value = id * 10;
 
         // Set elements via [] operator of shared_vector
         // This takes about 1.5 ms for 200000 elements
         // timer.start();
         // for (size_t i=0; i<event_count; ++i)
-        //   tof[i] = id;
+        //   pixel[i] = value;
         // timer.stop();
 
         // This is much faster, about 0.6 ms, but less realistic
         // because our code no longer accesses each array element
         // to deposit a presumably different value
         // timer.start();
-        fill(tof.begin(), tof.end(), id);
+        // fill(pixel.begin(), pixel.end(), value);
         // timer.stop();
 
         // Set elements via direct access to array memory.
         // Speed almost as good as std::fill(), about 0.65 ms,
         // and we could conceivably put different values into
         // each array element.
-        uint32 value = id * 10;
         timer.start();
         uint32 *data = pixel.dataPtr().get();
         for (size_t i=0; i<event_count; ++i)
             *(data++) = value;
         timer.stop();
 
-        shared_vector<const uint32> tof_data(freeze(tof));
         shared_vector<const uint32> pixel_data(freeze(pixel));
 
-        record->update(id, charge, tof_data, pixel_data);
+        record->update(id, charge, tof_runnable->getEvents(), pixel_data);
         // TODO Overflow the server queue by posting several updates.
         // For client request "record[queueSize=2]field()", this causes overrun.
         // For queueSize=3 it's fine.
         // record->update(id, charge, tof_data, pixel_data);
     }
+
+    tof_runnable->shutdown();
     cout << "Processing thread exits\n";
     processing_done.signal();
 }
