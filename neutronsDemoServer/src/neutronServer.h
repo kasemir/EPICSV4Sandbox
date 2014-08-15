@@ -41,7 +41,6 @@ public:
 
     // PVRecord methods
     static NeutronPVRecord::shared_pointer create(std::string const & recordName);
-    virtual ~NeutronPVRecord();
     virtual bool init();
     virtual void process();
 
@@ -71,7 +70,6 @@ class FakeNeutronEventRunnable : public epicsThreadRunable
 public:
     FakeNeutronEventRunnable(NeutronPVRecord::shared_pointer record,
                              double delay, size_t event_count);
-    ~FakeNeutronEventRunnable();
     void run();
     void setDelay(double seconds);
     void setCount(size_t count);

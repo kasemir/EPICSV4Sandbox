@@ -53,10 +53,6 @@ NeutronPVRecord::NeutronPVRecord(string const & recordName, PVStructurePtr const
 {
 }
 
-NeutronPVRecord::~NeutronPVRecord()
-{
-}
-
 bool NeutronPVRecord::init()
 {
     initPVRecord();
@@ -120,14 +116,17 @@ void NeutronPVRecord::update(uint64 id, double charge,
 }
 
 
-// When creating a large demo data arrays,
-// the two arrays can be filled in separate threads / CPU cores
-
-/** Runnable that creates an array */
+/** Runnable that creates an array.
+ *  When creating a large demo data arrays,
+ *  the two arrays can be filled in separate threads / CPU cores
+ */
 class ArrayRunnable : public epicsThreadRunable
 {
 public:
-    ArrayRunnable();
+    ArrayRunnable()
+    : do_run(true), event_count(0), id(0)
+    {}
+
     void run();
 
     /** Start collecting events (fill array with simulated data) */
@@ -141,7 +140,6 @@ public:
 
 protected:
     virtual shared_vector<const uint32> doCreateEvents(size_t event_count, uint64 id) = 0;
-
 
 private:
     /** Should thread run? */
@@ -161,11 +159,6 @@ private:
     /** Signaled when tof_data has been updated */
     epicsEvent done_processing;
 };
-
-ArrayRunnable::ArrayRunnable()
-: do_run(true), event_count(0), id(0)
-{
-}
 
 void ArrayRunnable::run()
 {
@@ -190,18 +183,16 @@ void ArrayRunnable::createEvents(size_t event_count, uint64 id)
 }
 
 shared_vector<const uint32> ArrayRunnable::getEvents()
-{
-    // Wait that we're done
+{   // Wait that we're done
     done_processing.wait();
     return data;
 }
 
 void ArrayRunnable::shutdown()
-{   // Request exit from thread
+{   // Request thread to exit
     do_run = false;
     thread_exited.wait(5.0);
 }
-
 
 class TimeOfFlightRunnable : public ArrayRunnable
 {
@@ -218,27 +209,52 @@ shared_vector<const uint32> TimeOfFlightRunnable::doCreateEvents(size_t event_co
 
 class PixelRunnable : public ArrayRunnable
 {
+public:
+    NanoTimer timer;
 protected:
     virtual shared_vector<const uint32> doCreateEvents(size_t event_count, uint64 id);
 };
 
 shared_vector<const uint32> PixelRunnable::doCreateEvents(size_t event_count, uint64 id)
 {
-    uint64 value = id * 10;
-    shared_vector<uint32> tof(event_count);
-    fill(tof.begin(), tof.end(), value);
-    return freeze(tof);
+    // In reality, each event would have a different value,
+    // which is simulated a little bit by actually looping over
+    // each element.
+    uint32 value = id * 10;
+
+    // Pixels created in this thread
+    shared_vector<uint32> pixel(event_count);
+
+    // Set elements via [] operator of shared_vector
+    // This takes about 1.5 ms for 200000 elements
+    // timer.start();
+    // for (size_t i=0; i<event_count; ++i)
+    //   pixel[i] = value;
+    // timer.stop();
+
+    // This is much faster, about 0.6 ms, but less realistic
+    // because our code no longer accesses each array element
+    // to deposit a presumably different value
+    // timer.start();
+    // fill(pixel.begin(), pixel.end(), value);
+    // timer.stop();
+
+    // Set elements via direct access to array memory.
+    // Speed almost as good as std::fill(), about 0.65 ms,
+    // and we could conceivably put different values into
+    // each array element.
+    timer.start();
+    uint32 *data = pixel.dataPtr().get();
+    for (size_t i=0; i<event_count; ++i)
+        *(data++) = value;
+    timer.stop();
+
+    return freeze(pixel);
 }
-
-
 
 FakeNeutronEventRunnable::FakeNeutronEventRunnable(NeutronPVRecord::shared_pointer record,
                                                    double delay, size_t event_count)
 : record(record), is_running(true), delay(delay), event_count(event_count)
-{
-}
-
-FakeNeutronEventRunnable::~FakeNeutronEventRunnable()
 {
 }
 
@@ -248,10 +264,9 @@ void FakeNeutronEventRunnable::run()
     shared_ptr<epicsThread> tof_thread(new epicsThread(*tof_runnable, "tof_processor", epicsThreadGetStackSize(epicsThreadStackMedium)));
     tof_thread->start();
 
-    shared_ptr<ArrayRunnable> pixel_runnable(new PixelRunnable());
+    shared_ptr<PixelRunnable> pixel_runnable(new PixelRunnable());
     shared_ptr<epicsThread> pixel_thread(new epicsThread(*pixel_runnable, "pixel_processor", epicsThreadGetStackSize(epicsThreadStackMedium)));
     pixel_thread->start();
-
 
     uint64 id = 0;
     size_t packets = 0, slow = 0;
@@ -260,7 +275,6 @@ void FakeNeutronEventRunnable::run()
     epicsTime next_log(last_run);
     epicsTime next_run;
 
-    NanoTimer timer;
     while (is_running)
     {
         // Compute time for next run
@@ -273,6 +287,15 @@ void FakeNeutronEventRunnable::run()
         else
             ++slow;
 
+        // Increment the 'ID' of the pulse
+        ++id;
+
+        // Create fake { time-of-flight, pixel } events,
+        // using the ID to get changing values, in parallel threads
+        tof_runnable->createEvents(event_count, id);
+        pixel_runnable->createEvents(event_count, id);
+
+        // >>>> While array threads are running >>>>
         // Mark this run
         last_run = epicsTime::getCurrent();
         ++packets;
@@ -282,66 +305,16 @@ void FakeNeutronEventRunnable::run()
         {
             next_log = last_run + 10.0;
             cout << packets << " packets, " << slow << " times slow";
-            cout << ", array values set in " << timer;
+            cout << ", array values set in " << pixel_runnable->timer;
             cout << endl;
             slow = 0;
         }
 
-        // Increment the 'ID' of the pulse
-        ++id;
-
         // Vary a fake 'charge' based on the ID
         double charge = (1 + id % 10)*1e8;
 
-        // Create fake { time-of-flight, pixel } events,
-        // using the ID to get changing values
-
-        // TOF created in parallel thread
-        tof_runnable->createEvents(event_count, id);
-
-#define TWO_ARRAY_THREADS
-#ifdef TWO_ARRAY_THREADS
-        // Pixels also created in separate thread
-        pixel_runnable->createEvents(event_count, id);
-        shared_vector<const uint32> pixel_data(pixel_runnable->getEvents());
-#else
-        // Pixels created in this thread
-        shared_vector<uint32> pixel(event_count);
-
-        // In reality, each event would have a different value,
-        // which is simulated a little bit by actually looping over
-        // each element.
-        uint32 value = id * 10;
-
-        // Set elements via [] operator of shared_vector
-        // This takes about 1.5 ms for 200000 elements
-        // timer.start();
-        // for (size_t i=0; i<event_count; ++i)
-        //   pixel[i] = value;
-        // timer.stop();
-
-        // This is much faster, about 0.6 ms, but less realistic
-        // because our code no longer accesses each array element
-        // to deposit a presumably different value
-        // timer.start();
-        // fill(pixel.begin(), pixel.end(), value);
-        // timer.stop();
-
-        // Set elements via direct access to array memory.
-        // Speed almost as good as std::fill(), about 0.65 ms,
-        // and we could conceivably put different values into
-        // each array element.
-        timer.start();
-        uint32 *data = pixel.dataPtr().get();
-        for (size_t i=0; i<event_count; ++i)
-            *(data++) = value;
-        timer.stop();
-
-        shared_vector<const uint32> pixel_data(freeze(pixel));
-#endif
-        shared_vector<const uint32> tof_data(tof_runnable->getEvents());
-
-        record->update(id, charge, tof_data, pixel_data);
+        // <<<< Wait for array threads, fetch their data <<<<
+        record->update(id, charge, tof_runnable->getEvents(), pixel_runnable->getEvents());
 
         // TODO Overflow the server queue by posting several updates.
         // For client request "record[queueSize=2]field()", this causes overrun.
