@@ -11,11 +11,12 @@
 #include <iostream>
 #include <pv/standardPVField.h>
 #include "neutronServer.h"
+#include "nanoTimer.h"
 
 using namespace epics::pvData;
 using namespace epics::pvDatabase;
+using namespace std;
 using std::tr1::static_pointer_cast;
-using std::string;
 
 namespace epics { namespace neutronServer {
 
@@ -137,6 +138,8 @@ void FakeNeutronEventRunnable::run()
     epicsTime last_run(epicsTime::getCurrent());
     epicsTime next_log(last_run);
     epicsTime next_run;
+
+    NanoTimer timer;
     while (is_running)
     {
         // Compute time for next run
@@ -157,7 +160,9 @@ void FakeNeutronEventRunnable::run()
         if (last_run > next_log)
         {
             next_log = last_run + 10.0;
-            std::cout << packets << " packets, " << slow << " times slow\n";
+            cout << packets << " packets, " << slow << " times slow";
+            cout << ", array values set in " << timer;
+            cout << endl;
             slow = 0;
         }
 
@@ -171,17 +176,35 @@ void FakeNeutronEventRunnable::run()
         // using the ID to get changing values
         shared_vector<uint32> tof(event_count);
         shared_vector<uint32> pixel(event_count);
+
+        // In reality, each event would have a different value,
+        // which is simulated a little bit by actually looping over
+        // each element.
+
         // Set elements via [] operator of shared_vector
-        for (size_t i=0; i<event_count; ++i)
-            tof[i] = id;
-        // Set elements via direct access to array memory,
-        // which is faster than the [] operator, based on
-        // periodically pausing in the debugger and noting
-        // the current instruction
+        // This takes about 1.5 ms for 200000 elements
+        // timer.start();
+        // for (size_t i=0; i<event_count; ++i)
+        //   tof[i] = id;
+        // timer.stop();
+
+        // This is much faster, about 0.6 ms, but less realistic
+        // because our code no longer accesses each array element
+        // to deposit a presumably different value
+        // timer.start();
+        fill(tof.begin(), tof.end(), id);
+        // timer.stop();
+
+        // Set elements via direct access to array memory.
+        // Speed almost as good as std::fill(), about 0.65 ms,
+        // and we could conceivably put different values into
+        // each array element.
         uint32 value = id * 10;
+        timer.start();
         uint32 *data = pixel.dataPtr().get();
         for (size_t i=0; i<event_count; ++i)
             *(data++) = value;
+        timer.stop();
 
         shared_vector<const uint32> tof_data(freeze(tof));
         shared_vector<const uint32> pixel_data(freeze(pixel));
@@ -192,7 +215,7 @@ void FakeNeutronEventRunnable::run()
         // For queueSize=3 it's fine.
         // record->update(id, charge, tof_data, pixel_data);
     }
-    std::cout << "Processing thread exits\n";
+    cout << "Processing thread exits\n";
     processing_done.signal();
 }
 

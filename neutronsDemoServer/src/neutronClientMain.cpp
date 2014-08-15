@@ -18,6 +18,7 @@
 #include <pv/pvAccess.h>
 #include <pv/monitor.h>
 
+// #define TIME_IT
 #ifdef TIME_IT
 #include "nanoTimer.h"
 #endif
@@ -181,10 +182,10 @@ void MyMonitorRequester::checkUpdate(shared_ptr<PVStructure> const &pvStructure)
     value_timer.start();
 #   endif
 
-    // Time for value lookup when re-using offset: 2ms
+    // Time for value lookup when re-using offset: 2us
     shared_ptr<PVULong> value = dynamic_pointer_cast<PVULong>(pvStructure->getSubField(value_offset));
 
-    // Compare: Time for value lookup when using name: 12ms
+    // Compare: Time for value lookup when using name: 12us
     // shared_ptr<PVULong> value = pvStructure->getULongField("pulse.value");
     if (! value)
     {

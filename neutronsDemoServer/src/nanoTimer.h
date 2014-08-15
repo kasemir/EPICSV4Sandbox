@@ -39,6 +39,8 @@ public:
 
     uint64_t getAverageNanosecs() const
     {
+        if (total_runs <= 0)
+            return 0;
         return total_ns / total_runs;
     }
 
@@ -52,7 +54,26 @@ public:
 
 std::ostream& operator<<(std::ostream& out, const NanoTimer& timer)
 {
-    out << timer.getAverageNanosecs() << " nanoseconds";
+    double avg = timer.getAverageNanosecs();
+    if (avg < 1000.0)
+    {
+        out << avg << " nanoseconds";
+        return out;
+    }
+    avg /= 1000.0;
+    if (avg < 1000.0)
+    {
+        out << avg << " microseconds";
+        return out;
+    }
+    avg /= 1000.0;
+    if (avg < 1000.0)
+    {
+        out << avg << " milliseconds";
+        return out;
+    }
+    avg /= 1000.0;
+    out << avg << " seconds";
     return out;
 }
 
