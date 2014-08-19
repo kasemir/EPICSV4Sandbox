@@ -10,6 +10,7 @@
  */
 #include <iostream>
 #include <pv/standardPVField.h>
+#include <workerRunnable.h>
 #include "neutronServer.h"
 #include "nanoTimer.h"
 
@@ -120,91 +121,49 @@ void NeutronPVRecord::update(uint64 id, double charge,
  *  When creating a large demo data arrays,
  *  the two arrays can be filled in separate threads / CPU cores
  */
-class ArrayRunnable : public epicsThreadRunable
+class ArrayRunnable : public WorkerRunnable
 {
 public:
     ArrayRunnable()
-    : do_run(true), event_count(0), id(0)
+    : event_count(0), id(0)
     {}
 
-    void run();
-
     /** Start collecting events (fill array with simulated data) */
-    void createEvents(size_t event_count, uint64 id);
+    void createEvents(size_t event_count, uint64 id)
+    {
+        this->event_count = event_count;
+        this->id = id;
+        startWork();
+    }
 
     /** Wait for data to be filled and return it */
-    shared_vector<const uint32> getEvents();
-
-    /** Exit the runnable and thus thread */
-    void shutdown();
+    shared_vector<const uint32> getEvents()
+    {
+        waitForCompletion();
+        return data;
+    }
 
 protected:
-    virtual shared_vector<const uint32> doCreateEvents(size_t event_count, uint64 id) = 0;
-
-private:
-    /** Should thread run? */
-    bool do_run;
-    /** Did thread exit? */
-    epicsEvent thread_exited;
-
     /** Parameters for new data request: How many events */
     size_t event_count;
     /** Parameters for new data request: Used to create dummy events */
     uint64 id;
-    /** Has new request been submitted? */
-    epicsEvent new_request;
-
     /** Result of a request for data */
     shared_vector<const uint32> data;
-    /** Signaled when tof_data has been updated */
-    epicsEvent done_processing;
 };
 
-void ArrayRunnable::run()
-{
-    while (do_run)
-    {
-        if (! new_request.wait(0.5))
-            continue; // check is_running, wait again
-
-        data = doCreateEvents(event_count, id);
-
-        // Signal that we're done
-        done_processing.signal();
-    }
-    thread_exited.signal();
-}
-
-void ArrayRunnable::createEvents(size_t event_count, uint64 id)
-{
-    this->event_count = event_count;
-    this->id = id;
-    new_request.signal();
-}
-
-shared_vector<const uint32> ArrayRunnable::getEvents()
-{   // Wait that we're done
-    done_processing.wait();
-    return data;
-}
-
-void ArrayRunnable::shutdown()
-{   // Request thread to exit
-    do_run = false;
-    thread_exited.wait(5.0);
-}
 
 class TimeOfFlightRunnable : public ArrayRunnable
 {
 protected:
-    virtual shared_vector<const uint32> doCreateEvents(size_t event_count, uint64 id);
+    void doWork();
 };
 
-shared_vector<const uint32> TimeOfFlightRunnable::doCreateEvents(size_t event_count, uint64 id)
+void TimeOfFlightRunnable::doWork()
 {
     shared_vector<uint32> tof(event_count);
     fill(tof.begin(), tof.end(), id);
-    return freeze(tof);
+    data = freeze(tof);
 }
 
 class PixelRunnable : public ArrayRunnable
@@ -212,10 +171,10 @@ class PixelRunnable : public ArrayRunnable
 public:
     NanoTimer timer;
 protected:
-    virtual shared_vector<const uint32> doCreateEvents(size_t event_count, uint64 id);
+    void doWork();
 };
 
-shared_vector<const uint32> PixelRunnable::doCreateEvents(size_t event_count, uint64 id)
+void PixelRunnable::doWork()
 {
     // In reality, each event would have a different value,
     // which is simulated a little bit by actually looping over
@@ -244,12 +203,12 @@ shared_vector<const uint32> PixelRunnable::doCreateEvents(size_t event_count, ui
     // and we could conceivably put different values into
     // each array element.
     timer.start();
-    uint32 *data = pixel.dataPtr().get();
+    uint32 *p = pixel.dataPtr().get();
     for (size_t i=0; i<event_count; ++i)
-        *(data++) = value;
+        *(p++) = value;
     timer.stop();
 
-    return freeze(pixel);
+    data = freeze(pixel);
 }
 
 FakeNeutronEventRunnable::FakeNeutronEventRunnable(NeutronPVRecord::shared_pointer record,

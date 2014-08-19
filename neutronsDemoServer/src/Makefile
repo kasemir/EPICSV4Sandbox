@@ -10,12 +10,14 @@ INC += neutronServer.h
 DBD += neutronServer.dbd
 LIBRARY_IOC += neutronServer
 neutronServer_SRCS += neutronServer.cpp
+neutronServer_SRCS += workerRunnable.cpp
 neutronServer_SRCS += neutronServerRegister.cpp
 
 # Standalone demo server
 PROD_HOST += neutronServerMain
 neutronServerMain_SRCS += neutronServerMain.cpp
 neutronServerMain_SRCS += neutronServer.cpp
+neutronServerMain_SRCS += workerRunnable.cpp
 neutronServerMain_LIBS += pvDatabase
 neutronServerMain_LIBS += pvAccess
 neutronServerMain_LIBS += pvData
