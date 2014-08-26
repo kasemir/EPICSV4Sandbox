@@ -1,4 +1,4 @@
-/* neutronServer.cpp
+/* neutronClientMain.cpp
  *
  * Copyright (c) 2014 Oak Ridge National Laboratory.
  * All rights reserved.
