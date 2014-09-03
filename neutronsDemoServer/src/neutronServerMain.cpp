@@ -40,15 +40,17 @@ static void help(const char *name)
     cout << "  -h        : Help" << endl;
     cout << "  -d seconds: Delay between packages (default 0.01)" << endl;
     cout << "  -e count  : Max event count per packet (default 10)" << endl;
+    cout << "  -r : Generate normally distributed data which looks semi realistic." << endl;
 }
 
 int main(int argc,char *argv[])
 {
     double delay = 0.01;
     size_t event_count = 10;
+    bool realistic = false;
 
     int opt;
-    while ((opt = getopt(argc, argv, "d:e:h")) != -1)
+    while ((opt = getopt(argc, argv, "d:e:h:r")) != -1)
     {
         switch (opt)
         {
@@ -61,6 +63,9 @@ int main(int argc,char *argv[])
         case 'h':
             help(argv[0]);
             return 0;
+	case 'r':
+	    realistic = true;
+            break;
         default:
             help(argv[0]);
             return -1;
@@ -69,6 +74,7 @@ int main(int argc,char *argv[])
 
     cout << "Delay : " << delay << " seconds" << endl;
     cout << "Events: " << event_count << endl;
+    cout << "Realistic: " << realistic << endl;
 
     PVDatabasePtr master = PVDatabase::getMaster();
     ChannelProviderLocalPtr channelProvider = getChannelProviderLocal();
@@ -78,7 +84,7 @@ int main(int argc,char *argv[])
     if (! master->addRecord(neutrons))
         throw std::runtime_error("Cannot add record " + neutrons->getRecordName());
 
-    shared_ptr<FakeNeutronEventRunnable> runnable(new FakeNeutronEventRunnable(neutrons, delay, event_count));
+    shared_ptr<FakeNeutronEventRunnable> runnable(new FakeNeutronEventRunnable(neutrons, delay, event_count, realistic));
     shared_ptr<epicsThread> thread(new epicsThread(*runnable, "processor", epicsThreadGetStackSize(epicsThreadStackMedium)));
     thread->start();
 
