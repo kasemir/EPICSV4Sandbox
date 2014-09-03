@@ -169,12 +169,13 @@ void TimeOfFlightRunnable::doWork()
     if (this->realistic == false) {
       fill(tof.begin(), tof.end(), id);
     } else {
+      uint32 *p = tof.dataPtr().get();
       for (uint32 i = 0; i != tof.size(); ++i) {
 	uint32 normal_tof = 0;
 	for (uint j = 0; j < NS_TOF_NORM; ++j) {
 	  normal_tof += rand() % (NS_TOF_MAX);
 	}
-	tof[i] = int(normal_tof/NS_TOF_NORM);
+	*(p++) = int(normal_tof/NS_TOF_NORM);
       }
     }
     data = freeze(tof);
@@ -227,11 +228,12 @@ void PixelRunnable::doWork()
       //Pixel IDs in two detector banks.
       //Generate random number between NS_ID_MIN1 and NS_ID_MAX1, or between NS_ID_MIN2 and NS_ID_MAX2
       timer.start();
+      uint32 *p = pixel.dataPtr().get();
       for (uint32 i = 0; i != pixel.size(); ++i) {
 	if (i%2 == 0) {
-	  pixel[i] = (rand() % (NS_ID_MAX1-NS_ID_MIN1)) + NS_ID_MIN1;
+	  *(p++) = (rand() % (NS_ID_MAX1-NS_ID_MIN1)) + NS_ID_MIN1;
 	} else {
-	  pixel[i] = (rand() % (NS_ID_MAX2-NS_ID_MIN2)) + NS_ID_MIN2;
+	  *(p++) = (rand() % (NS_ID_MAX2-NS_ID_MIN2)) + NS_ID_MIN2;
 	}
       }      
       timer.stop();
