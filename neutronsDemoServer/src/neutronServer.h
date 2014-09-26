@@ -24,8 +24,8 @@ namespace epics { namespace neutronServer {
 #define NS_TOF_MAX 160000 /** Maximum TOF value for the -r option (realistic data)*/
 #define NS_TOF_NORM 10 /** Number of random samples for each TOF to generate a normal distribution*/
 
-#define NS_ID_MIN1 1    /** Min pixel ID for detector 1 */
-#define NS_ID_MAX1 1024 /** Max pixel ID for detector 1 */
+#define NS_ID_MIN1 0    /** Min pixel ID for detector 1 */
+#define NS_ID_MAX1 1023 /** Max pixel ID for detector 1 */
 #define NS_ID_MIN2 2048 /** Min pixel ID for detector 2 */
 #define NS_ID_MAX2 3072 /** Max pixel ID for detector 2 */
 
