@@ -32,9 +32,10 @@ namespace epics { namespace neutronServer {
 /** Record that serves this type of pvData:
  *
  *  structure
- *      time_t  timeStamp // For everything in this structure
- *      NTScalar pulse
- *          ulong   value
+ *      // Time stamp for everything in this structure,
+ *      // userTag is sequential number to check for missed
+ *      // updates
+ *      time_t  timeStamp
  *      NTScalar protonCharge
  *          double  value
  *      NTScalarArray time_of_flight
@@ -63,10 +64,10 @@ private:
 
     // Time of last process() call
     epics::pvData::TimeStamp      timeStamp;
+    epics::pvData::uint32         pulse_id;
 
     // Pointers in to the records' data structure
     epics::pvData::PVTimeStamp    pvTimeStamp;
-    epics::pvData::PVULongPtr     pvPulseID;
     epics::pvData::PVDoublePtr    pvProtonCharge;
     epics::pvData::PVUIntArrayPtr pvTimeOfFlight;
     epics::pvData::PVUIntArrayPtr pvPixel;

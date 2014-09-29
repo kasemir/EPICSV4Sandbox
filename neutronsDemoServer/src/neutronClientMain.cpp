@@ -152,7 +152,7 @@ class MyMonitorRequester : public virtual MyRequester, public virtual MonitorReq
 #   ifdef TIME_IT
     NanoTimer value_timer;
 #   endif
-    size_t value_offset;
+    size_t user_tag_offset;
     uint64 updates;
     uint64 overruns;
     uint64 last_pulse_id;
@@ -163,7 +163,7 @@ public:
     MyMonitorRequester(bool quiet)
     : MyRequester("MyMonitorRequester"), quiet(quiet),
       next_run(epicsTime::getCurrent()),
-      value_offset(-1), updates(0), overruns(0), last_pulse_id(0), missing_pulses(0)
+      user_tag_offset(-1), updates(0), overruns(0), last_pulse_id(0), missing_pulses(0)
     {}
 
     void monitorConnect(Status const & status, MonitorPtr const & monitor, StructureConstPtr const & structure);
@@ -183,13 +183,13 @@ void MyMonitorRequester::checkUpdate(shared_ptr<PVStructure> const &pvStructure)
 #   endif
 
     // Time for value lookup when re-using offset: 2us
-    shared_ptr<PVULong> value = dynamic_pointer_cast<PVULong>(pvStructure->getSubField(value_offset));
+    shared_ptr<PVInt> value = dynamic_pointer_cast<PVInt>(pvStructure->getSubField(user_tag_offset));
 
     // Compare: Time for value lookup when using name: 12us
-    // shared_ptr<PVULong> value = pvStructure->getULongField("pulse.value");
+    // shared_ptr<PVInt> value = pvStructure->getIntField("timeStamp.userTag");
     if (! value)
     {
-        cout << "No 'pulse.value'" << endl;
+        cout << "No 'timeStamp.userTag'" << endl;
         return;
     }
 
@@ -197,7 +197,7 @@ void MyMonitorRequester::checkUpdate(shared_ptr<PVStructure> const &pvStructure)
     value_timer.stop();
 #   endif
 
-    uint64 pulse_id = value->get();
+    uint64 pulse_id = static_cast<uint64>(value->get());
     if (last_pulse_id != 0)
     {
         int missing = pulse_id - 1 - last_pulse_id;
@@ -216,13 +216,13 @@ void MyMonitorRequester::monitorConnect(Status const & status, MonitorPtr const 
         // Need to navigate the hierarchy, won't get the overall PVStructure offset.
         // Easier: Create temporary PVStructure
         PVStructurePtr pvStructure = getPVDataCreate()->createPVStructure(structure);
-        shared_ptr<PVULong> value = pvStructure->getULongField("pulse.value");
+        shared_ptr<PVInt> value = pvStructure->getIntField("timeStamp.userTag");
         if (! value)
         {
-            cout << "No 'pulse.value' ULong" << endl;
+            cout << "No 'timeStamp.userTag'" << endl;
             return;
         }
-        value_offset = value->getFieldOffset();
+        user_tag_offset = value->getFieldOffset();
         // pvStructure is disposed; keep value_offset to read data from monitor's pvStructure
 
         monitor->start();

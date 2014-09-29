@@ -31,7 +31,6 @@ NeutronPVRecord::shared_pointer NeutronPVRecord::create(string const & recordNam
     PVStructurePtr pvStructure = pvDataCreate->createPVStructure(
         fieldCreate->createFieldBuilder()
         ->add("timeStamp", standardField->timeStamp())
-        ->add("pulse", standardField->scalar(pvULong, ""))
         // Demo for manual setup of structure, could use
         // add("protonCharge", standardField->scalar(pvDouble, ""))
         ->addNestedStructure("protonCharge")
@@ -62,10 +61,6 @@ bool NeutronPVRecord::init()
     if (!pvTimeStamp.attach(getPVStructure()->getSubField("timeStamp")))
         return false;
 
-    pvPulseID = getPVStructure()->getULongField("pulse.value");
-    if (pvPulseID.get() == NULL)
-        return false;
-
     pvProtonCharge = getPVStructure()->getDoubleField("protonCharge.value");
     if (pvProtonCharge.get() == NULL)
         return false;
@@ -85,6 +80,8 @@ void NeutronPVRecord::process()
 {
     // Update timestamp
     timeStamp.getCurrent();
+    // pulse_id is unsigned, put into userTag as signed?
+    timeStamp.setUserTag(static_cast<int>(pulse_id));
     pvTimeStamp.set(timeStamp);
 }
 
@@ -96,7 +93,7 @@ void NeutronPVRecord::update(uint64 id, double charge,
     try
     {
         beginGroupPut();
-        pvPulseID->put(id);
+        pulse_id = id;
         pvProtonCharge->put(charge);
         pvTimeOfFlight->replace(tof);
         pvPixel->replace(pixel);
