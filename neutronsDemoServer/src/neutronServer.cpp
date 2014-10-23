@@ -32,8 +32,8 @@ NeutronPVRecord::shared_pointer NeutronPVRecord::create(string const & recordNam
         fieldCreate->createFieldBuilder()
         ->add("timeStamp", standardField->timeStamp())
         // Demo for manual setup of structure, could use
-        // add("protonCharge", standardField->scalar(pvDouble, ""))
-        ->addNestedStructure("protonCharge")
+        // add("proton_charge", standardField->scalar(pvDouble, ""))
+        ->addNestedStructure("proton_charge")
             ->setId("uri:ev4:nt/2012/pwd:NTScalar")
             ->add("value", pvDouble)
         ->endNested()
@@ -61,7 +61,7 @@ bool NeutronPVRecord::init()
     if (!pvTimeStamp.attach(getPVStructure()->getSubField("timeStamp")))
         return false;
 
-    pvProtonCharge = getPVStructure()->getDoubleField("protonCharge.value");
+    pvProtonCharge = getPVStructure()->getDoubleField("proton_charge.value");
     if (pvProtonCharge.get() == NULL)
         return false;
 

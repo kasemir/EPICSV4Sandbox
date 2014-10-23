@@ -36,7 +36,7 @@ namespace epics { namespace neutronServer {
  *      // userTag is sequential number to check for missed
  *      // updates
  *      time_t  timeStamp
- *      NTScalar protonCharge
+ *      NTScalar proton_charge
  *          double  value
  *      NTScalarArray time_of_flight
  *          uint[]  value
