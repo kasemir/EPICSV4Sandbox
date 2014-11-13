@@ -320,9 +320,9 @@ void MyMonitorRequester::checkUpdate(shared_ptr<PVStructure> const &pvStructure)
 
     if (tof->getLength() != pixel->getLength())
     {
+        ++array_size_differences;
         if (! quiet)
         {
-            ++array_size_differences;
             cout << "time_of_flight: " << tof->getLength() << " elements" << endl;
             shared_vector<const uint32> tof_data;
             tof->getAs(tof_data);
