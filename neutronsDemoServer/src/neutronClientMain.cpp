@@ -153,17 +153,21 @@ class MyMonitorRequester : public virtual MyRequester, public virtual MonitorReq
     NanoTimer value_timer;
 #   endif
     size_t user_tag_offset;
+    size_t tof_offset;
+    size_t pixel_offset;
     uint64 updates;
     uint64 overruns;
     uint64 last_pulse_id;
     uint64 missing_pulses;
+    uint64 array_size_differences;
 
     void checkUpdate(shared_ptr<PVStructure> const &structure);
 public:
     MyMonitorRequester(bool quiet)
     : MyRequester("MyMonitorRequester"), quiet(quiet),
       next_run(epicsTime::getCurrent()),
-      user_tag_offset(-1), updates(0), overruns(0), last_pulse_id(0), missing_pulses(0)
+      user_tag_offset(-1), tof_offset(-1), pixel_offset(-1),
+      updates(0), overruns(0), last_pulse_id(0), missing_pulses(0), array_size_differences(0)
     {}
 
     void monitorConnect(Status const & status, MonitorPtr const & monitor, StructureConstPtr const & structure);
@@ -176,37 +180,6 @@ public:
     }
 };
 
-void MyMonitorRequester::checkUpdate(shared_ptr<PVStructure> const &pvStructure)
-{
-#   ifdef TIME_IT
-    value_timer.start();
-#   endif
-
-    // Time for value lookup when re-using offset: 2us
-    shared_ptr<PVInt> value = dynamic_pointer_cast<PVInt>(pvStructure->getSubField(user_tag_offset));
-
-    // Compare: Time for value lookup when using name: 12us
-    // shared_ptr<PVInt> value = pvStructure->getIntField("timeStamp.userTag");
-    if (! value)
-    {
-        cout << "No 'timeStamp.userTag'" << endl;
-        return;
-    }
-
-#   ifdef TIME_IT
-    value_timer.stop();
-#   endif
-
-    uint64 pulse_id = static_cast<uint64>(value->get());
-    if (last_pulse_id != 0)
-    {
-        int missing = pulse_id - 1 - last_pulse_id;
-        if (missing > 0)
-            missing_pulses += missing;
-    }
-    last_pulse_id = pulse_id;
-}
-
 void MyMonitorRequester::monitorConnect(Status const & status, MonitorPtr const & monitor, StructureConstPtr const & structure)
 {
     cout << "Monitor connects, " << status << endl;
@@ -216,13 +189,30 @@ void MyMonitorRequester::monitorConnect(Status const & status, MonitorPtr const 
         // Need to navigate the hierarchy, won't get the overall PVStructure offset.
         // Easier: Create temporary PVStructure
         PVStructurePtr pvStructure = getPVDataCreate()->createPVStructure(structure);
-        shared_ptr<PVInt> value = pvStructure->getIntField("timeStamp.userTag");
-        if (! value)
+        shared_ptr<PVInt> user_tag = pvStructure->getIntField("timeStamp.userTag");
+        if (! user_tag)
         {
             cout << "No 'timeStamp.userTag'" << endl;
             return;
         }
-        user_tag_offset = value->getFieldOffset();
+        user_tag_offset = user_tag->getFieldOffset();
+
+        shared_ptr<PVScalarArray> tof = pvStructure->getScalarArrayField("time_of_flight.value", pvUInt);
+        if (! tof)
+        {
+            cout << "No 'time_of_flight'" << endl;
+            return;
+        }
+        tof_offset = tof->getFieldOffset();
+
+        shared_ptr<PVScalarArray> pixel = pvStructure->getScalarArrayField("pixel.value", pvUInt);
+        if (! pixel)
+        {
+            cout << "No 'pixel'" << endl;
+            return;
+        }
+        pixel_offset = pixel->getFieldOffset();
+
         // pvStructure is disposed; keep value_offset to read data from monitor's pvStructure
 
         monitor->start();
@@ -253,11 +243,13 @@ void MyMonitorRequester::monitorEvent(MonitorPtr const & monitor)
                 cout << updates << " updates, "
                      << overruns << " overruns, "
                      << missing_pulses << " missing pulses, "
+                     << array_size_differences << " array size differences, "
                      << "received " << fixed << setprecision(1) << received_perc << "%"
                      << endl;
                 overruns = 0;
                 missing_pulses = 0;
                 updates = 0;
+                array_size_differences = 0;
 
 #               ifdef TIME_IT
                 cout << "Time for value lookup: " << value_timer << endl;
@@ -277,6 +269,70 @@ void MyMonitorRequester::monitorEvent(MonitorPtr const & monitor)
             cout << endl;
         }
         monitor->release(update);
+    }
+}
+
+void MyMonitorRequester::checkUpdate(shared_ptr<PVStructure> const &pvStructure)
+{
+#   ifdef TIME_IT
+    value_timer.start();
+#   endif
+
+    // Time for value lookup when re-using offset: 2us
+    shared_ptr<PVInt> value = dynamic_pointer_cast<PVInt>(pvStructure->getSubField(user_tag_offset));
+
+    // Compare: Time for value lookup when using name: 12us
+    // shared_ptr<PVInt> value = pvStructure->getIntField("timeStamp.userTag");
+    if (! value)
+    {
+        cout << "No 'timeStamp.userTag'" << endl;
+        return;
+    }
+
+#   ifdef TIME_IT
+    value_timer.stop();
+#   endif
+
+    // Check pulse ID for skipped updates
+    uint64 pulse_id = static_cast<uint64>(value->get());
+    if (last_pulse_id != 0)
+    {
+        int missing = pulse_id - 1 - last_pulse_id;
+        if (missing > 0)
+            missing_pulses += missing;
+    }
+    last_pulse_id = pulse_id;
+
+    // Compare lengths of tof and pixel arrays
+    shared_ptr<PVUIntArray> tof = dynamic_pointer_cast<PVUIntArray>(pvStructure->getSubField(tof_offset));
+    if (!tof)
+    {
+        cout << "No 'time_of_flight' array" << endl;
+        return;
+    }
+
+    shared_ptr<PVUIntArray> pixel = dynamic_pointer_cast<PVUIntArray>(pvStructure->getSubField(pixel_offset));
+    if (!pixel)
+    {
+        cout << "No 'pixel' array" << endl;
+        return;
+    }
+
+    if (tof->getLength() != pixel->getLength())
+    {
+        if (! quiet)
+        {
+            ++array_size_differences;
+            cout << "time_of_flight: " << tof->getLength() << " elements" << endl;
+            shared_vector<const uint32> tof_data;
+            tof->getAs(tof_data);
+            cout << tof_data << endl;
+
+            cout << "pixel: " << pixel->getLength() << " elements" << endl;
+            shared_vector<const uint32> pixel_data;
+            pixel->getAs(pixel_data);
+            cout << pixel_data << endl;
+        }
     }
 }
 
