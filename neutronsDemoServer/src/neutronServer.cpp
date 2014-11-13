@@ -49,7 +49,7 @@ NeutronPVRecord::shared_pointer NeutronPVRecord::create(string const & recordNam
 }
 
 NeutronPVRecord::NeutronPVRecord(string const & recordName, PVStructurePtr const & pvStructure)
-: PVRecord(recordName,pvStructure)
+: PVRecord(recordName,pvStructure), pulse_id(0)
 {
 }
 
@@ -163,17 +163,18 @@ protected:
 void TimeOfFlightRunnable::doWork()
 {
     shared_vector<uint32> tof(event_count);
-    if (this->realistic == false) {
-      fill(tof.begin(), tof.end(), id);
-    } else {
-      uint32 *p = tof.dataPtr().get();
-      for (uint32 i = 0; i != tof.size(); ++i) {
-	uint32 normal_tof = 0;
-	for (uint j = 0; j < NS_TOF_NORM; ++j) {
-	  normal_tof += rand() % (NS_TOF_MAX);
-	}
-	*(p++) = int(normal_tof/NS_TOF_NORM);
-      }
+    if (this->realistic == false)
+        fill(tof.begin(), tof.end(), id);
+    else
+    {
+        uint32 *p = tof.dataPtr().get();
+        for (uint32 i = 0; i != tof.size(); ++i)
+        {
+            uint32 normal_tof = 0;
+            for (uint j = 0; j < NS_TOF_NORM; ++j)
+                normal_tof += rand() % (NS_TOF_MAX);
+            *(p++) = int(normal_tof/NS_TOF_NORM);
+        }
     }
     data = freeze(tof);
 }
@@ -196,44 +197,47 @@ void PixelRunnable::doWork()
     // Pixels created in this thread
     shared_vector<uint32> pixel(event_count);
 
-    if (this->realistic == false) {
-    // Set elements via [] operator of shared_vector
-    // This takes about 1.5 ms for 200000 elements
-    // timer.start();
-    // for (size_t i=0; i<event_count; ++i)
-    //   pixel[i] = value;
-    // timer.stop();
+    if (this->realistic == false)
+    {
+        // Set elements via [] operator of shared_vector
+        // This takes about 1.5 ms for 200000 elements
+        // timer.start();
+        // for (size_t i=0; i<event_count; ++i)
+        //   pixel[i] = value;
+        // timer.stop();
 
-    // This is much faster, about 0.6 ms, but less realistic
-    // because our code no longer accesses each array element
-    // to deposit a presumably different value
-    // timer.start();
-    // fill(pixel.begin(), pixel.end(), value);
-    // timer.stop();
+        // This is much faster, about 0.6 ms, but less realistic
+        // because our code no longer accesses each array element
+        // to deposit a presumably different value
+        // timer.start();
+        // fill(pixel.begin(), pixel.end(), value);
+        // timer.stop();
 
-    // Set elements via direct access to array memory.
-    // Speed almost as good as std::fill(), about 0.65 ms,
-    // and we could conceivably put different values into
-    // each array element.
-      timer.start();
-      uint32 *p = pixel.dataPtr().get();
-      for (size_t i=0; i<event_count; ++i)
-        *(p++) = value;
-      timer.stop();
+        // Set elements via direct access to array memory.
+        // Speed almost as good as std::fill(), about 0.65 ms,
+        // and we could conceivably put different values into
+        // each array element.
+        timer.start();
+        uint32 *p = pixel.dataPtr().get();
+        for (size_t i=0; i<event_count; ++i)
+            *(p++) = value;
+        timer.stop();
     
-    } else {
-      //Pixel IDs in two detector banks.
-      //Generate random number between NS_ID_MIN1 and NS_ID_MAX1, or between NS_ID_MIN2 and NS_ID_MAX2
-      timer.start();
-      uint32 *p = pixel.dataPtr().get();
-      for (uint32 i = 0; i != pixel.size(); ++i) {
-	if (i%2 == 0) {
-	  *(p++) = (rand() % (NS_ID_MAX1-NS_ID_MIN1)) + NS_ID_MIN1;
-	} else {
-	  *(p++) = (rand() % (NS_ID_MAX2-NS_ID_MIN2)) + NS_ID_MIN2;
-	}
-      }      
-      timer.stop();
+    }
+    else
+    {
+        //Pixel IDs in two detector banks.
+        //Generate random number between NS_ID_MIN1 and NS_ID_MAX1, or between NS_ID_MIN2 and NS_ID_MAX2
+        timer.start();
+        uint32 *p = pixel.dataPtr().get();
+        for (uint32 i = 0; i != pixel.size(); ++i)
+        {
+            if (i%2 == 0)
+                *(p++) = (rand() % (NS_ID_MAX1-NS_ID_MIN1)) + NS_ID_MIN1;
+            else
+                *(p++) = (rand() % (NS_ID_MAX2-NS_ID_MIN2)) + NS_ID_MIN2;
+        }
+        timer.stop();
     }
 
     data = freeze(pixel);
