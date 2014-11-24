@@ -122,13 +122,13 @@ class ArrayRunnable : public WorkerRunnable
 {
 public:
     ArrayRunnable()
-    : event_count(0), id(0), realistic(0)
+    : count(0), id(0), realistic(0)
     {}
 
     /** Start collecting events (fill array with simulated data) */
-    void createEvents(size_t event_count, uint64 id, bool realistic)
+    void createEvents(size_t count, uint64 id, bool realistic)
     {
-        this->event_count = event_count;
+        this->count = count;
         this->id = id;
         this->realistic = realistic;
         startWork();
@@ -143,7 +143,7 @@ public:
 
 protected:
     /** Parameters for new data request: How many events */
-    size_t event_count;
+    size_t count;
     /** Parameters for new data request: Used to create dummy events */
     uint64 id;
     /** Flag to generate semi-real looking data.**/
@@ -162,7 +162,7 @@ protected:
 
 void TimeOfFlightRunnable::doWork()
 {
-    shared_vector<uint32> tof(event_count);
+    shared_vector<uint32> tof(count);
     if (this->realistic == false)
         fill(tof.begin(), tof.end(), id);
     else
@@ -189,20 +189,20 @@ protected:
 
 void PixelRunnable::doWork()
 {
-    // In reality, each event would have a different value,
+	// In reality, each event would have a different value,
     // which is simulated a little bit by actually looping over
     // each element.
     uint32 value = id * 10;
 
     // Pixels created in this thread
-    shared_vector<uint32> pixel(event_count);
+    shared_vector<uint32> pixel(count);
 
     if (this->realistic == false)
     {
         // Set elements via [] operator of shared_vector
         // This takes about 1.5 ms for 200000 elements
         // timer.start();
-        // for (size_t i=0; i<event_count; ++i)
+        // for (size_t i=0; i<count; ++i)
         //   pixel[i] = value;
         // timer.stop();
 
@@ -219,7 +219,7 @@ void PixelRunnable::doWork()
         // each array element.
         timer.start();
         uint32 *p = pixel.dataPtr().get();
-        for (size_t i=0; i<event_count; ++i)
+        for (size_t i=0; i<count; ++i)
             *(p++) = value;
         timer.stop();
     
@@ -244,8 +244,8 @@ void PixelRunnable::doWork()
 }
 
 FakeNeutronEventRunnable::FakeNeutronEventRunnable(NeutronPVRecord::shared_pointer record,
-                                                   double delay, size_t event_count, bool realistic)
-  : record(record), is_running(true), delay(delay), event_count(event_count), realistic(realistic)
+                                                   double delay, size_t event_count, bool random_count, bool realistic)
+  : record(record), is_running(true), delay(delay), event_count(event_count), random_count(random_count), realistic(realistic)
 {
 }
 
@@ -283,8 +283,9 @@ void FakeNeutronEventRunnable::run()
 
         // Create fake { time-of-flight, pixel } events,
         // using the ID to get changing values, in parallel threads
-        tof_runnable->createEvents(event_count, id, realistic);
-        pixel_runnable->createEvents(event_count, id, realistic);
+    	size_t count = random_count ? (rand() % event_count) : event_count;
+        tof_runnable->createEvents(count, id, realistic);
+        pixel_runnable->createEvents(count, id, realistic);
 
         // >>>> While array threads are running >>>>
         // Mark this run
@@ -327,6 +328,11 @@ void FakeNeutronEventRunnable::setDelay(double seconds)
 void FakeNeutronEventRunnable::setCount(size_t count)
 {   // No locking..
     event_count = count;
+}
+
+void FakeNeutronEventRunnable::setRandomCount(bool random_count)
+{   // No locking..
+	this->random_count = random_count;
 }
 
 void FakeNeutronEventRunnable::shutdown()

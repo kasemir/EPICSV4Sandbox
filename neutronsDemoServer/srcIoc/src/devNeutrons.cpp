@@ -1,6 +1,13 @@
 /* devNeutrons.cpp
  *
  * Device support for EPICS V3 records that interface with a V4 record
+ *
+ * When the V3 record with DTYP "Demo Neutron Delay" is loaded to control the V4 data,
+ * its global_init() will create the V4 record.
+ *
+ * When no V3 record are loaded to control the V4 record, it needs to be created
+ * from the IOC shell via the neutronServerCreateRecord command.
+ *
  * @author Kay Kasemir
  */
 #include <stddef.h>
@@ -44,7 +51,7 @@ static long global_init(int pass)
         neutrons_record = NeutronPVRecord::create(name);
         if (! PVDatabase::getMaster()->addRecord(neutrons_record))
             cout << "Cannot create neutron record '" << neutrons_record->getRecordName() << "'" << endl;
-        fake_event_runnable.reset(new FakeNeutronEventRunnable(neutrons_record, 1, 10, 0));
+        fake_event_runnable.reset(new FakeNeutronEventRunnable(neutrons_record, 1, 10, false, 0));
     }
     else if (pass == 1)
     {

@@ -40,6 +40,7 @@ static void help(const char *name)
     cout << "  -h        : Help" << endl;
     cout << "  -d seconds: Delay between packages (default 0.01)" << endl;
     cout << "  -e count  : Max event count per packet (default 10)" << endl;
+    cout << "  -m : Random event count, using 'count' as maximum" << endl;
     cout << "  -r : Generate normally distributed data which looks semi realistic." << endl;
 }
 
@@ -47,10 +48,11 @@ int main(int argc,char *argv[])
 {
     double delay = 0.01;
     size_t event_count = 10;
+    bool random_count = false;
     bool realistic = false;
 
     int opt;
-    while ((opt = getopt(argc, argv, "d:e:h:r")) != -1)
+    while ((opt = getopt(argc, argv, "d:e:h:mr")) != -1)
     {
         switch (opt)
         {
@@ -63,8 +65,11 @@ int main(int argc,char *argv[])
         case 'h':
             help(argv[0]);
             return 0;
-	case 'r':
-	    realistic = true;
+        case 'm':
+        	random_count = true;
+            break;
+        case 'r':
+        	realistic = true;
             break;
         default:
             help(argv[0]);
@@ -84,7 +89,7 @@ int main(int argc,char *argv[])
     if (! master->addRecord(neutrons))
         throw std::runtime_error("Cannot add record " + neutrons->getRecordName());
 
-    shared_ptr<FakeNeutronEventRunnable> runnable(new FakeNeutronEventRunnable(neutrons, delay, event_count, realistic));
+    shared_ptr<FakeNeutronEventRunnable> runnable(new FakeNeutronEventRunnable(neutrons, delay, event_count, random_count, realistic));
     shared_ptr<epicsThread> thread(new epicsThread(*runnable, "processor", epicsThreadGetStackSize(epicsThreadStackMedium)));
     thread->start();
 
