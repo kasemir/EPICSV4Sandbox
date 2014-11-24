@@ -145,6 +145,7 @@ void MyChannelGetRequester::getDone(const Status& status,
 /** Requester for 'monitoring' value changes of a channel */
 class MyMonitorRequester : public virtual MyRequester, public virtual MonitorRequester
 {
+	int limit;
     bool quiet;
     Event done_event;
 
@@ -155,6 +156,7 @@ class MyMonitorRequester : public virtual MyRequester, public virtual MonitorReq
     size_t user_tag_offset;
     size_t tof_offset;
     size_t pixel_offset;
+    int monitors;
     uint64 updates;
     uint64 overruns;
     uint64 last_pulse_id;
@@ -163,11 +165,12 @@ class MyMonitorRequester : public virtual MyRequester, public virtual MonitorReq
 
     void checkUpdate(shared_ptr<PVStructure> const &structure);
 public:
-    MyMonitorRequester(bool quiet)
-    : MyRequester("MyMonitorRequester"), quiet(quiet),
+    MyMonitorRequester(int limit, bool quiet)
+    : MyRequester("MyMonitorRequester"),
+      limit(limit), quiet(quiet),
       next_run(epicsTime::getCurrent()),
       user_tag_offset(-1), tof_offset(-1), pixel_offset(-1),
-      updates(0), overruns(0), last_pulse_id(0), missing_pulses(0), array_size_differences(0)
+      monitors(0), updates(0), overruns(0), last_pulse_id(0), missing_pulses(0), array_size_differences(0)
     {}
 
     void monitorConnect(Status const & status, MonitorPtr const & monitor, StructureConstPtr const & structure);
@@ -270,6 +273,12 @@ void MyMonitorRequester::monitorEvent(MonitorPtr const & monitor)
         }
         monitor->release(update);
     }
+    ++ monitors;
+    if (limit > 0  &&  monitors >= limit)
+    {
+    	cout << "Received " << monitors << " monitors" << endl;
+    	done_event.signal();
+    }
 }
 
 void MyMonitorRequester::checkUpdate(shared_ptr<PVStructure> const &pvStructure)
@@ -368,7 +377,7 @@ void getValue(string const &name, string const &request, double timeout)
 }
 
 /** Monitor values */
-void doMonitor(string const &name, string const &request, double timeout, short priority, bool quiet)
+void doMonitor(string const &name, string const &request, double timeout, short priority, int limit, bool quiet)
 {
     ChannelProvider::shared_pointer channelProvider =
             getChannelProviderRegistry()->getProvider("pva");
@@ -380,11 +389,11 @@ void doMonitor(string const &name, string const &request, double timeout, short 
     channelRequester->waitUntilConnected(timeout);
 
     shared_ptr<PVStructure> pvRequest = CreateRequest::create()->createRequest(request);
-    shared_ptr<MyMonitorRequester> monitorRequester(new MyMonitorRequester(quiet));
+    shared_ptr<MyMonitorRequester> monitorRequester(new MyMonitorRequester(limit, quiet));
 
     shared_ptr<Monitor> monitor = channel->createMonitor(monitorRequester, pvRequest);
 
-    // Wait forever..
+    // Wait until limit or forever..
     monitorRequester->waitUntilDone();
 }
 
@@ -398,6 +407,7 @@ static void help(const char *name)
     cout << "  -r request : Request" << endl;
     cout << "  -w seconds : Wait timeout" << endl;
     cout << "  -p priority: Priority, 0..99, default 0" << endl;
+    cout << "  -l monitors: Limit runtime to given number of monitors, then quit" << endl;
 }
 
 int main(int argc,char *argv[])
@@ -408,9 +418,10 @@ int main(int argc,char *argv[])
     bool monitor = false;
     bool quiet = false;
     short priority = ChannelProvider::PRIORITY_DEFAULT;
+    int limit = 0;
 
     int opt;
-    while ((opt = getopt(argc, argv, "r:w:p:mqh")) != -1)
+    while ((opt = getopt(argc, argv, "r:w:p:l:mqh")) != -1)
     {
         switch (opt)
         {
@@ -422,6 +433,9 @@ int main(int argc,char *argv[])
             break;
         case 'p':
             priority = atoi(optarg);
+            break;
+        case 'l':
+        	limit = atoi(optarg);
             break;
         case 'm':
             monitor = true;
@@ -444,12 +458,13 @@ int main(int argc,char *argv[])
     cout << "Request:  " << request << endl;
     cout << "Wait:     " << timeout << " sec" << endl;
     cout << "Priority: " << priority << endl;
+    cout << "Limit: " << limit << endl;
 
     try
     {
         ClientFactory::start();
         if (monitor)
-            doMonitor(channel, request, timeout, priority, quiet);
+            doMonitor(channel, request, timeout, priority, limit, quiet);
         else
             getValue(channel, request, timeout);
         ClientFactory::stop();
