@@ -113,6 +113,16 @@ void NeutronPVRecord::update(uint64 id, double charge,
     unlock();
 }
 
+// --------------------------------------------------------------------------------------------
+// What follows is the FakeNeutronEventRunnable that creates dummy data.
+// Basic profiling by periodically pausing the code in the debugger showed that
+// much of the server time is spent populating the pixel and time-of-flight arrays.
+// As the number of events is increased, the server hit a CPU limit in the thread
+// that created and filled the two arrays.
+//
+// This implementation now uses two threads, one each for the tof_runnable and pixel_runnable,
+// then posting updated data as both provide a result.
+// --------------------------------------------------------------------------------------------
 
 /** Runnable that creates an array.
  *  When creating a large demo data arrays,
