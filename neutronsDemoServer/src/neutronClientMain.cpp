@@ -395,6 +395,13 @@ void doMonitor(string const &name, string const &request, double timeout, short 
 
     // Wait until limit or forever..
     monitorRequester->waitUntilDone();
+
+    // What to do for graceful shutdown of monitor?
+    Status stat = monitor->stop();
+    if (! stat.isSuccess())
+    	cout << "Cannot stop monitor, " << stat << endl;
+    monitor->destroy();
+    channel->destroy();
 }
 
 
