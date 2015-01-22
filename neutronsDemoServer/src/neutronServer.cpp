@@ -34,7 +34,7 @@ NeutronPVRecord::shared_pointer NeutronPVRecord::create(string const & recordNam
         // Demo for manual setup of structure, could use
         // add("proton_charge", standardField->scalar(pvDouble, ""))
         ->addNestedStructure("proton_charge")
-            ->setId("uri:ev4:nt/2012/pwd:NTScalar")
+            ->setId("epics:nt/NTScalar:1.0")
             ->add("value", pvDouble)
         ->endNested()
         ->add("time_of_flight", standardField->scalarArray(pvUInt, ""))
