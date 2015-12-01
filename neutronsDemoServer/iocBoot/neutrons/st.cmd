@@ -14,6 +14,7 @@ dbLoadRecords("db/neutrons.db","P=demo")
 cd ${TOP}/iocBoot/${IOC}
 iocInit()
 
+# List V3 records
 dbl
 epicsThreadSleep(1.0)
 
@@ -25,5 +26,11 @@ epicsThreadSleep(1.0)
 
 startPVAServer
 
+# List V4 channels
 pvdbl
+
+#
+# If IOC includes pvaSrv,
+# the V3 records are also served via pvAccess.
+# This is a build time option, see srcIoc/src/neutronsInclude.dbd
 

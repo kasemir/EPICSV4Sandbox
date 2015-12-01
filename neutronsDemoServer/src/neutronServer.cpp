@@ -34,7 +34,7 @@ NeutronPVRecord::shared_pointer NeutronPVRecord::create(string const & recordNam
         // Demo for manual setup of structure, could use
         // add("proton_charge", standardField->scalar(pvDouble, ""))
         ->addNestedStructure("proton_charge")
-            ->setId("uri:ev4:nt/2012/pwd:NTScalar")
+            ->setId("epics:nt/NTScalar:1.0")
             ->add("value", pvDouble)
         ->endNested()
         ->add("time_of_flight", standardField->scalarArray(pvUInt, ""))
@@ -49,7 +49,7 @@ NeutronPVRecord::shared_pointer NeutronPVRecord::create(string const & recordNam
 }
 
 NeutronPVRecord::NeutronPVRecord(string const & recordName, PVStructurePtr const & pvStructure)
-: PVRecord(recordName,pvStructure)
+: PVRecord(recordName,pvStructure), pulse_id(0)
 {
 }
 
@@ -113,6 +113,16 @@ void NeutronPVRecord::update(uint64 id, double charge,
     unlock();
 }
 
+// --------------------------------------------------------------------------------------------
+// What follows is the FakeNeutronEventRunnable that creates dummy data.
+// Basic profiling by periodically pausing the code in the debugger showed that
+// much of the server time is spent populating the pixel and time-of-flight arrays.
+// As the number of events is increased, the server hit a CPU limit in the thread
+// that created and filled the two arrays.
+//
+// This implementation now uses two threads, one each for the tof_runnable and pixel_runnable,
+// then posting updated data as both provide a result.
+// --------------------------------------------------------------------------------------------
 
 /** Runnable that creates an array.
  *  When creating a large demo data arrays,
@@ -122,13 +132,13 @@ class ArrayRunnable : public WorkerRunnable
 {
 public:
     ArrayRunnable()
-    : event_count(0), id(0), realistic(0)
+    : count(0), id(0), realistic(0)
     {}
 
     /** Start collecting events (fill array with simulated data) */
-    void createEvents(size_t event_count, uint64 id, bool realistic)
+    void createEvents(size_t count, uint64 id, bool realistic)
     {
-        this->event_count = event_count;
+        this->count = count;
         this->id = id;
         this->realistic = realistic;
         startWork();
@@ -143,7 +153,7 @@ public:
 
 protected:
     /** Parameters for new data request: How many events */
-    size_t event_count;
+    size_t count;
     /** Parameters for new data request: Used to create dummy events */
     uint64 id;
     /** Flag to generate semi-real looking data.**/
@@ -162,18 +172,19 @@ protected:
 
 void TimeOfFlightRunnable::doWork()
 {
-    shared_vector<uint32> tof(event_count);
-    if (this->realistic == false) {
-      fill(tof.begin(), tof.end(), id);
-    } else {
-      uint32 *p = tof.dataPtr().get();
-      for (uint32 i = 0; i != tof.size(); ++i) {
-	uint32 normal_tof = 0;
-	for (uint j = 0; j < NS_TOF_NORM; ++j) {
-	  normal_tof += rand() % (NS_TOF_MAX);
-	}
-	*(p++) = int(normal_tof/NS_TOF_NORM);
-      }
+    shared_vector<uint32> tof(count);
+    if (this->realistic == false)
+        fill(tof.begin(), tof.end(), id);
+    else
+    {
+        uint32 *p = tof.dataPtr().get();
+        for (uint32 i = 0; i != tof.size(); ++i)
+        {
+            uint32 normal_tof = 0;
+            for (uint j = 0; j < NS_TOF_NORM; ++j)
+                normal_tof += rand() % (NS_TOF_MAX);
+            *(p++) = int(normal_tof/NS_TOF_NORM);
+        }
     }
     data = freeze(tof);
 }
@@ -188,60 +199,63 @@ protected:
 
 void PixelRunnable::doWork()
 {
-    // In reality, each event would have a different value,
+	// In reality, each event would have a different value,
     // which is simulated a little bit by actually looping over
     // each element.
     uint32 value = id * 10;
 
     // Pixels created in this thread
-    shared_vector<uint32> pixel(event_count);
+    shared_vector<uint32> pixel(count);
 
-    if (this->realistic == false) {
-    // Set elements via [] operator of shared_vector
-    // This takes about 1.5 ms for 200000 elements
-    // timer.start();
-    // for (size_t i=0; i<event_count; ++i)
-    //   pixel[i] = value;
-    // timer.stop();
+    if (this->realistic == false)
+    {
+        // Set elements via [] operator of shared_vector
+        // This takes about 1.5 ms for 200000 elements
+        // timer.start();
+        // for (size_t i=0; i<count; ++i)
+        //   pixel[i] = value;
+        // timer.stop();
 
-    // This is much faster, about 0.6 ms, but less realistic
-    // because our code no longer accesses each array element
-    // to deposit a presumably different value
-    // timer.start();
-    // fill(pixel.begin(), pixel.end(), value);
-    // timer.stop();
+        // This is much faster, about 0.6 ms, but less realistic
+        // because our code no longer accesses each array element
+        // to deposit a presumably different value
+        // timer.start();
+        // fill(pixel.begin(), pixel.end(), value);
+        // timer.stop();
 
-    // Set elements via direct access to array memory.
-    // Speed almost as good as std::fill(), about 0.65 ms,
-    // and we could conceivably put different values into
-    // each array element.
-      timer.start();
-      uint32 *p = pixel.dataPtr().get();
-      for (size_t i=0; i<event_count; ++i)
-        *(p++) = value;
-      timer.stop();
+        // Set elements via direct access to array memory.
+        // Speed almost as good as std::fill(), about 0.65 ms,
+        // and we could conceivably put different values into
+        // each array element.
+        timer.start();
+        uint32 *p = pixel.dataPtr().get();
+        for (size_t i=0; i<count; ++i)
+            *(p++) = value;
+        timer.stop();
     
-    } else {
-      //Pixel IDs in two detector banks.
-      //Generate random number between NS_ID_MIN1 and NS_ID_MAX1, or between NS_ID_MIN2 and NS_ID_MAX2
-      timer.start();
-      uint32 *p = pixel.dataPtr().get();
-      for (uint32 i = 0; i != pixel.size(); ++i) {
-	if (i%2 == 0) {
-	  *(p++) = (rand() % (NS_ID_MAX1-NS_ID_MIN1)) + NS_ID_MIN1;
-	} else {
-	  *(p++) = (rand() % (NS_ID_MAX2-NS_ID_MIN2)) + NS_ID_MIN2;
-	}
-      }      
-      timer.stop();
+    }
+    else
+    {
+        //Pixel IDs in two detector banks.
+        //Generate random number between NS_ID_MIN1 and NS_ID_MAX1, or between NS_ID_MIN2 and NS_ID_MAX2
+        timer.start();
+        uint32 *p = pixel.dataPtr().get();
+        for (uint32 i = 0; i != pixel.size(); ++i)
+        {
+            if (i%2 == 0)
+                *(p++) = (rand() % (NS_ID_MAX1-NS_ID_MIN1)) + NS_ID_MIN1;
+            else
+                *(p++) = (rand() % (NS_ID_MAX2-NS_ID_MIN2)) + NS_ID_MIN2;
+        }
+        timer.stop();
     }
 
     data = freeze(pixel);
 }
 
 FakeNeutronEventRunnable::FakeNeutronEventRunnable(NeutronPVRecord::shared_pointer record,
-                                                   double delay, size_t event_count, bool realistic)
-  : record(record), is_running(true), delay(delay), event_count(event_count), realistic(realistic)
+                                                   double delay, size_t event_count, bool random_count, bool realistic)
+  : record(record), is_running(true), delay(delay), event_count(event_count), random_count(random_count), realistic(realistic)
 {
 }
 
@@ -279,8 +293,9 @@ void FakeNeutronEventRunnable::run()
 
         // Create fake { time-of-flight, pixel } events,
         // using the ID to get changing values, in parallel threads
-        tof_runnable->createEvents(event_count, id, realistic);
-        pixel_runnable->createEvents(event_count, id, realistic);
+    	size_t count = random_count ? (rand() % event_count) : event_count;
+        tof_runnable->createEvents(count, id, realistic);
+        pixel_runnable->createEvents(count, id, realistic);
 
         // >>>> While array threads are running >>>>
         // Mark this run
@@ -323,6 +338,11 @@ void FakeNeutronEventRunnable::setDelay(double seconds)
 void FakeNeutronEventRunnable::setCount(size_t count)
 {   // No locking..
     event_count = count;
+}
+
+void FakeNeutronEventRunnable::setRandomCount(bool random_count)
+{   // No locking..
+	this->random_count = random_count;
 }
 
 void FakeNeutronEventRunnable::shutdown()

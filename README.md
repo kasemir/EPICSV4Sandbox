@@ -47,4 +47,7 @@ Can be monitored via
 or
 
     neutronClientMain -m -q
+    
+If IOC includes pvaSrv, its V3 records can also be reached via pvAccess.
+See srcIoc/src/neutronsInclude.dbd
 
