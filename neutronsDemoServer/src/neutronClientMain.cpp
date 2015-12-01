@@ -192,7 +192,7 @@ void MyMonitorRequester::monitorConnect(Status const & status, MonitorPtr const 
         // Need to navigate the hierarchy, won't get the overall PVStructure offset.
         // Easier: Create temporary PVStructure
         PVStructurePtr pvStructure = getPVDataCreate()->createPVStructure(structure);
-        shared_ptr<PVInt> user_tag = pvStructure->getIntField("timeStamp.userTag");
+        shared_ptr<PVInt> user_tag = pvStructure->getSubField<PVInt>("timeStamp.userTag");
         if (! user_tag)
         {
             cout << "No 'timeStamp.userTag'" << endl;
@@ -200,7 +200,7 @@ void MyMonitorRequester::monitorConnect(Status const & status, MonitorPtr const 
         }
         user_tag_offset = user_tag->getFieldOffset();
 
-        shared_ptr<PVScalarArray> tof = pvStructure->getScalarArrayField("time_of_flight.value", pvUInt);
+        shared_ptr<PVUIntArray> tof = pvStructure->getSubField<PVUIntArray>("time_of_flight.value");
         if (! tof)
         {
             cout << "No 'time_of_flight'" << endl;
@@ -208,7 +208,7 @@ void MyMonitorRequester::monitorConnect(Status const & status, MonitorPtr const 
         }
         tof_offset = tof->getFieldOffset();
 
-        shared_ptr<PVScalarArray> pixel = pvStructure->getScalarArrayField("pixel.value", pvUInt);
+        shared_ptr<PVUIntArray> pixel = pvStructure->getSubField<PVUIntArray>("pixel.value");
         if (! pixel)
         {
             cout << "No 'pixel'" << endl;
