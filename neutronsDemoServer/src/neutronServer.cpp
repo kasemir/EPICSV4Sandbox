@@ -61,7 +61,7 @@ bool NeutronPVRecord::init()
     if (!pvTimeStamp.attach(getPVStructure()->getSubField("timeStamp")))
         return false;
 
-    pvProtonCharge = getPVStructure()->getDoubleField("proton_charge.value");
+    pvProtonCharge = getPVStructure()->getSubField<PVDouble>("proton_charge.value");
     if (pvProtonCharge.get() == NULL)
         return false;
 

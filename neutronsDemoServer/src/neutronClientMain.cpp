@@ -216,7 +216,7 @@ void MyMonitorRequester::monitorConnect(Status const & status, MonitorPtr const 
         // Need to navigate the hierarchy, won't get the overall PVStructure offset.
         // Easier: Create temporary PVStructure
         PVStructurePtr pvStructure = getPVDataCreate()->createPVStructure(structure);
-        shared_ptr<PVInt> value = pvStructure->getIntField("timeStamp.userTag");
+        shared_ptr<PVInt> value = pvStructure->getSubField<PVInt>("timeStamp.userTag");
         if (! value)
         {
             cout << "No 'timeStamp.userTag'" << endl;
