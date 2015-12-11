@@ -7,6 +7,7 @@
  * @author Kay Kasemir
  */
 #include <iostream>
+#include <getopt.h>
 
 #include <epicsThread.h>
 #include <epicsTime.h>
