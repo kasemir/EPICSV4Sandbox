@@ -52,3 +52,20 @@ or
 If IOC includes pvaSrv, its V3 records can also be reached via pvAccess.
 See srcIoc/src/neutronsInclude.dbd
 
+ntndarrayServer
+---------------
+Creates animated image.
+From V4 training material by David Hickin, https://github.com/dhickin/epicsv4Training.
+
+Runs as standalone server:
+    
+    ntndarrayServerMain IMAGE
+
+Then try:
+
+    pvinfo IMAGE
+    pvget -m -r dimension IMAGE
+    pvget -m -r value IMAGE
+
+Can be used as PV for the Display Builder Image widget.
+
