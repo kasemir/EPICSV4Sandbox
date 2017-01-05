@@ -78,7 +78,7 @@ void NTNDArrayRecord::update()
     try
     {
         beginGroupPut();
-        PVByteArray::svector bytes;
+        PVShortArray::svector bytes;
         imageGen->fillSharedVector(bytes,angle);
         setValue(freeze(bytes));
         if (firstTime)
@@ -102,12 +102,13 @@ void NTNDArrayRecord::update()
     unlock();
 }
 
-void NTNDArrayRecord::setValue(PVByteArray::const_svector const & bytes)
+void NTNDArrayRecord::setValue(PVShortArray::const_svector const & bytes)
 {
     // Get the union value field
     PVUnionPtr value = pvStructure->getSubFieldT<PVUnion>("value");
-    // Select the byteValue field stored in "value"
-    PVByteArrayPtr byteValue = value->select<PVByteArray>("byteValue");
+    // Used to select the "byteValue" field stored in "value".
+    // Now gets the 16 bit "shortValue" field of the union.
+    PVShortArrayPtr byteValue = value->select<PVShortArray>("shortValue");
     // replace the shared vector with "bytes"
     byteValue->replace(bytes);
     // call postPut so that the union sees the change in the stored field  

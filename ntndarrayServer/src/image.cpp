@@ -20,18 +20,18 @@ using namespace epics::pvData;
 
 namespace epics { namespace ntndarrayServer { 
 
-RotatingImageGeneratorPtr RotatingImageGenerator::create(const int8_t* data, size_t width, size_t height)
+RotatingImageGeneratorPtr RotatingImageGenerator::create(const int16_t* data, size_t width, size_t height)
 {
     return RotatingImageGeneratorPtr(new RotatingImageGenerator(data,
         width, height));
 }
 
-RotatingImageGenerator::RotatingImageGenerator(const int8_t* data, size_t width, size_t height)
+RotatingImageGenerator::RotatingImageGenerator(const int16_t* data, size_t width, size_t height)
 : m_data(data), m_width(width), m_height(height), m_size(width*height)
 {
 }
 
-void RotatingImageGenerator::fillSharedVector(PVByteArray::svector & sv, float deg)
+void RotatingImageGenerator::fillSharedVector(PVShortArray::svector & sv, float deg)
 {
     int32 cols = m_width;
     int32 rows = m_height;
@@ -47,11 +47,11 @@ void RotatingImageGenerator::fillSharedVector(PVByteArray::svector & sv, float d
     int32 rowsm2 = rows-2;
 
     sv.resize(m_size);
-    int8_t* img = sv.data();
+    int16_t* img = sv.data();
 
     for (int32 y = 0; y < rows; y++)
     {
-        int8_t* imgline = img + y*cols;
+        int16_t* imgline = img + y*cols;
         int32 dcy = y - cy;
         for (int32 x = 0; x < cols; x++)
         {
@@ -69,7 +69,7 @@ void RotatingImageGenerator::fillSharedVector(PVByteArray::svector & sv, float d
             }
             else
             {
-                const int8_t* srcline = m_data + ny*cols;
+                const int16_t* srcline = m_data + ny*cols;
 
                 int32 xf = tnx & 0x0F;
                 int32 yf = tny & 0x0F;
@@ -80,7 +80,6 @@ void RotatingImageGenerator::fillSharedVector(PVByteArray::svector & sv, float d
                 int32 v11 = xf * yf * (srcline[cols + nx + 1] + 128);
                 uint8_t val = static_cast<uint8_t>((v00 + v01 + v10 + v11 + 128) / 256);
                 imgline[x] = static_cast<int32>(val) - 128;
-
             }
         }
     }

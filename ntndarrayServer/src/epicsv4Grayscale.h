@@ -7,7 +7,7 @@ const int32_t epicsv4_raw_dim[] = { epicsv4_width, epicsv4_height};
 const size_t epicsv4_raw_size = 31832;
 
 // 173x184 image
-const int8_t epicsv4_raw[31832] = {
+const int16_t epicsv4_raw[31832] = {
     static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu),
     static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu),
     static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu), static_cast<int8_t>(0xFFu),
