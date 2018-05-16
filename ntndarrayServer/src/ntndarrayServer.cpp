@@ -65,7 +65,8 @@ void NTNDArrayRecord::destroy()
 bool NTNDArrayRecord::init()
 {   
     initPVRecord();
-    NTNDArrayRecordPtr xxx = dynamic_pointer_cast<NTNDArrayRecord>(getPtrSelf());
+    NTNDArrayRecordPtr xxx = dynamic_pointer_cast<NTNDArrayRecord>(shared_from_this());
+    
     ntndarrayServerThread = NTNDArrayRecordThreadPtr(new NTNDArrayRecordThread(xxx));
     ntndarrayServerThread->init();
     ntndarrayServerThread->start();
