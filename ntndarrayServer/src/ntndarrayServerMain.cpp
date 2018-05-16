@@ -66,8 +66,8 @@ int main(int argc,char *argv[])
     }
 
     pvaServer->shutdown();
-    pvaServer->destroy();
-    channelProvider->destroy();
+    //pvaServer->destroy();
+    //channelProvider->destroy();
     return 0;
 }
 
