@@ -356,7 +356,9 @@ void MyMonitorRequester::unlisten(MonitorPtr const & monitor)
 void getValue(string const &name, string const &request, double timeout)
 {
     ChannelProvider::shared_pointer channelProvider =
-            getChannelProviderRegistry()->getProvider("pva");
+            ChannelProviderRegistry::clients()->getProvider("pva");
+	//getChannelProviderRegistry()->getProvider("pva"); This is the old way.
+    
     if (! channelProvider)
         THROW_EXCEPTION2(runtime_error, "No channel provider");
 
@@ -381,7 +383,8 @@ void getValue(string const &name, string const &request, double timeout)
 void doMonitor(string const &name, string const &request, double timeout, short priority, int limit, bool quiet)
 {
     ChannelProvider::shared_pointer channelProvider =
-            getChannelProviderRegistry()->getProvider("pva");
+            ChannelProviderRegistry::clients()->getProvider("pva");
+            //getChannelProviderRegistry()->getProvider("pva");
     if (! channelProvider)
         THROW_EXCEPTION2(runtime_error, "No channel provider");
 
