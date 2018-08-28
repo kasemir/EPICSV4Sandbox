@@ -3,12 +3,7 @@ include "base.dbd"
 include "PVAClientRegister.dbd"
 include "PVAServerRegister.dbd"
 include "registerChannelProviderLocal.dbd"
-
-# This is the pvaSrv support that provides
-# pvAccess channels for the V3 database.
-# If included, the Makefile must link the pvaSrv library
-include "dbPv.dbd"
-
+include "qsrv.dbd"
 
 include "neutronServer.dbd"
 

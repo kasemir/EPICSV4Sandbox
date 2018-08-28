@@ -30,7 +30,7 @@ startPVAServer
 pvdbl
 
 #
-# If IOC includes pvaSrv,
+# If IOC includes qsrv
 # the V3 records are also served via pvAccess.
 # This is a build time option, see srcIoc/src/neutronsInclude.dbd
 

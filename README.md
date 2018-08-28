@@ -1,25 +1,17 @@
 EPICSV4Sandbox
 ==============
 
-Explorational EPICS V4 tests, demos, trials, experiments
+Explorational EPICS V4/7 tests, demos, trials, experiments
 
 To compile, this needs to be checked out into a directory that has a file RELEASE.local:
 
     EPICSV4Sandbox/
     RELEASE.local
 
-That RELEASE.local file needs to list paths to EPICS V3 and V4:
+That RELEASE.local file needs to list paths to EPICS 7:
 
     # Example RELEASE.local file
-    EPICS_BASE=/home/controls/base-3.15.4-pre1
-    EV4_BASE=/home/controls/EPICS-CPP-4.5.0.2
-    PVDATABASE=$(EV4_BASE)/pvDatabaseCPP
-    PVASRV=$(EV4_BASE)/pvaSrv
-    PVACCESS=$(EV4_BASE)/pvAccessCPP
-    NORMATIVETYPES=$(EV4_BASE)/normativeTypesCPP
-    PVDATA=$(EV4_BASE)/pvDataCPP
-    PVCOMMON=$(EV4_BASE)/pvCommonCPP
-
+    EPICS_BASE=/home/training/epics-train/tools/base-7.0.1.1
 
 neutronsDemoServer
 ------------------
@@ -29,13 +21,8 @@ Can be started as a standalone server:
 
     neutronServerMain -e 200000
 
-    pvCommonCPP/
-    pvDataCPP/
-    pvAccessCPP/
-    pvaSrv/
-    pvDatabaseCPP/
-
-Command-line arguments for delay between updates and number of events within each update.
+Run with '-h' to see command-line arguments for delay between updates
+and number of events within each update.
 
 Can also run as an IOC:
 
@@ -43,7 +30,7 @@ Can also run as an IOC:
 
 Can be monitored via
 
-    pvget -m neutrons
+    pvget -m -r "field()" neutrons
     
 or
 

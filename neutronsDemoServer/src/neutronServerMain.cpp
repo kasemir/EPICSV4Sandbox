@@ -112,8 +112,8 @@ int main(int argc,char *argv[])
     runnable->shutdown();
     pvaServer->shutdown();
     epicsThreadSleep(1.0);
-    pvaServer->destroy();
-    channelProvider->destroy();
+    // pvaServer->destroy();
+    // channelProvider->destroy();
 
     return 0;
 }
