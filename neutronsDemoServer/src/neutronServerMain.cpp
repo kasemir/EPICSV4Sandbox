@@ -42,6 +42,7 @@ static void help(const char *name)
     cout << "  -e count  : Max event count per packet (default 10)" << endl;
     cout << "  -m : Random event count, using 'count' as maximum" << endl;
     cout << "  -r : Generate normally distributed data which looks semi realistic." << endl;
+    cout << "  -s Nth : Don't send every N'th packet to simulate losing data packets (default 0 which means disabled)." << endl;
 }
 
 int main(int argc,char *argv[])
@@ -50,9 +51,10 @@ int main(int argc,char *argv[])
     size_t event_count = 10;
     bool random_count = false;
     bool realistic = false;
+    size_t skip_packets = 0;
 
     int opt;
-    while ((opt = getopt(argc, argv, "d:e:h:mr")) != -1)
+    while ((opt = getopt(argc, argv, "d:e:h:mrs:")) != -1)
     {
         switch (opt)
         {
@@ -70,7 +72,10 @@ int main(int argc,char *argv[])
             break;
         case 'r':
         	realistic = true;
-            break;
+                break;
+        case 's':
+                skip_packets = (size_t)atol(optarg);
+                break;
         default:
             help(argv[0]);
             return -1;
@@ -80,6 +85,9 @@ int main(int argc,char *argv[])
     cout << "Delay : " << delay << " seconds" << endl;
     cout << "Events: " << event_count << endl;
     cout << "Realistic: " << realistic << endl;
+    if (skip_packets > 0) {
+      cout << "Skipping every " << skip_packets << " packets." << endl;
+    }
 
     PVDatabasePtr master = PVDatabase::getMaster();
     ChannelProviderLocalPtr channelProvider = getChannelProviderLocal();
@@ -89,7 +97,7 @@ int main(int argc,char *argv[])
     if (! master->addRecord(neutrons))
         throw std::runtime_error("Cannot add record " + neutrons->getRecordName());
 
-    shared_ptr<FakeNeutronEventRunnable> runnable(new FakeNeutronEventRunnable(neutrons, delay, event_count, random_count, realistic));
+    shared_ptr<FakeNeutronEventRunnable> runnable(new FakeNeutronEventRunnable(neutrons, delay, event_count, random_count, realistic, skip_packets));
     shared_ptr<epicsThread> thread(new epicsThread(*runnable, "processor", epicsThreadGetStackSize(epicsThreadStackMedium)));
     thread->start();
 

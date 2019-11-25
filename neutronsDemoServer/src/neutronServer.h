@@ -78,7 +78,7 @@ class FakeNeutronEventRunnable : public epicsThreadRunable
 {
 public:
     FakeNeutronEventRunnable(NeutronPVRecord::shared_pointer record,
-                             double delay, size_t event_count,  bool random_count, bool realistic);
+                             double delay, size_t event_count,  bool random_count, bool realistic, size_t skip_packets);
     void run();
     void setDelay(double seconds);
     void setCount(size_t count);
@@ -92,6 +92,7 @@ private:
     size_t event_count;
     bool random_count;
     bool realistic;
+    size_t skip_packets;
 };
 
 }}

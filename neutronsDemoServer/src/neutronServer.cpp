@@ -254,8 +254,10 @@ void PixelRunnable::doWork()
 }
 
 FakeNeutronEventRunnable::FakeNeutronEventRunnable(NeutronPVRecord::shared_pointer record,
-                                                   double delay, size_t event_count, bool random_count, bool realistic)
-  : record(record), is_running(true), delay(delay), event_count(event_count), random_count(random_count), realistic(realistic)
+                                                   double delay, size_t event_count, bool random_count, 
+                                                   bool realistic, size_t skip_packets)
+  : record(record), is_running(true), delay(delay), event_count(event_count), random_count(random_count), 
+    realistic(realistic), skip_packets(skip_packets)
 {
 }
 
@@ -277,7 +279,7 @@ void FakeNeutronEventRunnable::run()
     epicsTime next_run;
 
     while (is_running)
-    {
+    { 
         // Compute time for next run
         next_run = last_run + delay;
 
@@ -291,37 +293,48 @@ void FakeNeutronEventRunnable::run()
         // Increment the 'ID' of the pulse
         ++id;
 
-        // Create fake { time-of-flight, pixel } events,
-        // using the ID to get changing values, in parallel threads
-    	size_t count = random_count ? (rand() % event_count) : event_count;
-        tof_runnable->createEvents(count, id, realistic);
-        pixel_runnable->createEvents(count, id, realistic);
-
-        // >>>> While array threads are running >>>>
-        // Mark this run
-        last_run = epicsTime::getCurrent();
-        ++packets;
-
-        // Every 10 second, show how many updates we generated so far
-        if (last_run > next_log)
-        {
-            next_log = last_run + 10.0;
-            cout << packets << " packets, " << slow << " times slow";
-            cout << ", array values set in " << pixel_runnable->timer;
-            cout << endl;
-            slow = 0;
+        // Optionally skip every Nth packet
+        bool skip = false;
+        if (skip_packets > 0) {
+          skip = ((id % skip_packets) == 0);
         }
 
-        // Vary a fake 'charge' based on the ID
-        double charge = (1 + id % 10)*1e8;
+        if (!skip) {
 
-        // <<<< Wait for array threads, fetch their data <<<<
-        record->update(id, charge, tof_runnable->getEvents(), pixel_runnable->getEvents());
+          // Create fake { time-of-flight, pixel } events,
+          // using the ID to get changing values, in parallel threads
+          size_t count = random_count ? (rand() % event_count) : event_count;
+          tof_runnable->createEvents(count, id, realistic);
+          pixel_runnable->createEvents(count, id, realistic);
+          
+          // >>>> While array threads are running >>>>
+          // Mark this run
+          last_run = epicsTime::getCurrent();
+          ++packets;
 
-        // TODO Overflow the server queue by posting several updates.
-        // For client request "record[queueSize=2]field()", this causes overrun.
-        // For queueSize=3 it's fine.
-        // record->update(id, charge, tof_data, pixel_data);
+          // Every 10 second, show how many updates we generated so far
+          if (last_run > next_log)
+            {
+              next_log = last_run + 10.0;
+              cout << packets << " packets, " << slow << " times slow";
+              cout << ", array values set in " << pixel_runnable->timer;
+              cout << endl;
+              slow = 0;
+            }
+
+          // Vary a fake 'charge' based on the ID
+          double charge = (1 + id % 10)*1e8;
+
+          // <<<< Wait for array threads, fetch their data <<<<
+          record->update(id, charge, tof_runnable->getEvents(), pixel_runnable->getEvents());
+
+          // TODO Overflow the server queue by posting several updates.
+          // For client request "record[queueSize=2]field()", this causes overrun.
+          // For queueSize=3 it's fine.
+          // record->update(id, charge, tof_data, pixel_data);
+
+        }
+
     }
 
     pixel_runnable->shutdown();

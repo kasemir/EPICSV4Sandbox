@@ -51,7 +51,7 @@ static long global_init(int pass)
         neutrons_record = NeutronPVRecord::create(name);
         if (! PVDatabase::getMaster()->addRecord(neutrons_record))
             cout << "Cannot create neutron record '" << neutrons_record->getRecordName() << "'" << endl;
-        fake_event_runnable.reset(new FakeNeutronEventRunnable(neutrons_record, 1, 10, false, 0));
+        fake_event_runnable.reset(new FakeNeutronEventRunnable(neutrons_record, 1, 10, false, 0, 0));
     }
     else if (pass == 1)
     {

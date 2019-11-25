@@ -26,8 +26,9 @@ static const iocshArg createArg1 = { "updateDelaySecs", iocshArgDouble };
 static const iocshArg createArg2 = { "eventCount", iocshArgInt };
 static const iocshArg createArg3 = { "randomCount", iocshArgInt };
 static const iocshArg createArg4 = { "realistic", iocshArgInt };
-static const iocshArg *createArgs[] = { &createArg0, &createArg1, &createArg2, &createArg3, &createArg4 };
-static const iocshFuncDef createFuncDef = { "neutronServerCreateRecord", 5, createArgs};
+static const iocshArg createArg5 = { "skipPackets", iocshArgInt };
+static const iocshArg *createArgs[] = { &createArg0, &createArg1, &createArg2, &createArg3, &createArg4, &createArg5 };
+static const iocshFuncDef createFuncDef = { "neutronServerCreateRecord", 6, createArgs};
 static void createFunc(const iocshArgBuf *args)
 {
     char *name = args[0].sval;
@@ -35,6 +36,7 @@ static void createFunc(const iocshArgBuf *args)
     size_t event_count = args[2].ival;
     bool random_count = args[3].ival;
     bool realistic = args[4].ival;
+    size_t skip_packets = args[5].ival;
 
     NeutronPVRecord::shared_pointer record = NeutronPVRecord::create(name);
     if (! PVDatabase::getMaster()->addRecord(record))
@@ -42,7 +44,7 @@ static void createFunc(const iocshArgBuf *args)
 
     if (delay > 0)
     {
-        epicsThreadRunable *runnable = new FakeNeutronEventRunnable(record, delay, event_count, random_count, realistic);
+      epicsThreadRunable *runnable = new FakeNeutronEventRunnable(record, delay, event_count, random_count, realistic, skip_packets);
         epicsThread *thread = new epicsThread(*runnable, "FakeNeutrons", epicsThreadGetStackSize(epicsThreadStackMedium));
         thread->start();
     }
