@@ -15,9 +15,15 @@
 #include <epicsEvent.h>
 #include <epicsThread.h>
 
-#include <pv/pvDatabase.h>
-#include <pv/timeStamp.h>
-#include <pv/pvTimeStamp.h>
+#ifdef USE_PVXS
+#    include <pvxs/data.h>
+#    include <pvxs/server.h>
+#    include <pvxs/sharedpv.h>
+#else
+#    include <pv/pvDatabase.h>
+#    include <pv/timeStamp.h>
+#    include <pv/pvTimeStamp.h>
+#endif
 
 namespace epics { namespace neutronServer {
 
@@ -43,6 +49,48 @@ namespace epics { namespace neutronServer {
  *      NTScalarArray pixel
  *          uint[]  value
  */
+#ifdef USE_PVXS
+struct Neutrons {
+    // We don't have to define Neutrons structure here,
+    // but we do it for completness and comparison with NeutronPVRecord
+
+    //! A TypeDef which can be appended
+    PVXS_API
+    pvxs::TypeDef build() const
+    {
+        using namespace pvxs;
+        using namespace pvxs::members;
+
+        TypeDef def(
+            TypeCode::Struct,
+            {
+                Struct("timeStamp", "time_t", {
+                    Int64("secondsPastEpoch"),
+                    Int32("nanoseconds"),
+                    Int32("userTag"),
+                }),
+                Struct("time_of_flight", "epics:nt/NTScalarArray:1.0", {
+                    UInt32A("value")
+                }),
+                Struct("pixel", "epics:nt/NTScalarArray:1.0", {
+                    UInt32A("value")
+                }),
+                Struct("proton_charge", "epics:nt/NTScalar:1.0", {
+                    Float64("value")
+                }),
+            }
+        );
+
+        return def;
+    }
+    //! Instanciate
+    inline pvxs::Value create() const {
+        return build().create();
+    }
+};
+
+#else // !defined(USE_PVXS)
+
 class NeutronPVRecord : public epics::pvDatabase::PVRecord
 {
 public:
@@ -72,20 +120,37 @@ private:
     epics::pvData::PVUIntArrayPtr pvTimeOfFlight;
     epics::pvData::PVUIntArrayPtr pvPixel;
 };
+#endif // USE_PVXS
 
 /** Runnable for demo events */
 class FakeNeutronEventRunnable : public epicsThreadRunable
 {
 public:
-    FakeNeutronEventRunnable(NeutronPVRecord::shared_pointer record,
+    FakeNeutronEventRunnable(const std::string& record_name,
                              double delay, size_t event_count,  bool random_count, bool realistic, size_t skip_packets);
     void run();
     void setDelay(double seconds);
     void setCount(size_t count);
     void setRandomCount(bool random_count);
     void shutdown();
+#ifdef USE_PVXS
+    pvxs::server::SharedPV& getRecord()
+    {
+        return record;
+    }
+#else
+    NeutronPVRecord::shared_pointer getRecord()
+    {
+        return record;
+    }
+#endif
 private:
+#ifdef USE_PVXS
+    pvxs::server::SharedPV record;
+    pvxs::TypeDef recordDef;
+#else
     NeutronPVRecord::shared_pointer record;
+#endif
     bool is_running;
     epicsEvent processing_done;
     double delay;

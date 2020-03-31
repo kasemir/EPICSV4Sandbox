@@ -23,6 +23,10 @@ neutronServerMain_LIBS += pvAccess
 neutronServerMain_LIBS += pvData
 neutronServerMain_LIBS += Com
 
+# Uncomment next two lines to build against PVXS
+#USR_CXXFLAGS += -DUSE_PVX
+#neutronServerMain_LIBS += pvxs
+
 # Standalone client that checks sequence of events from demo server
 PROD_HOST += neutronClientMain
 neutronClientMain_SRCS += neutronClientMain.cpp

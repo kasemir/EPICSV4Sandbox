@@ -17,22 +17,23 @@
 #include <iostream>
 #include <unistd.h>
 
-#include <pv/standardField.h>
-#include <pv/standardPVField.h>
+#include <epicsThread.h>
+
 #include "neutronServer.h"
-#include <pv/traceRecord.h>
-#include <pv/channelProviderLocal.h>
-#include <pv/serverContext.h>
 
-#include <pv/createRequest.h>
-
-
-using namespace std;
-using std::tr1::shared_ptr;
-using namespace epics::pvData;
-using namespace epics::pvAccess;
-using namespace epics::pvDatabase;
 using namespace epics::neutronServer;
+using namespace std;
+#ifndef USE_PVXS
+#   include <pv/standardField.h>
+#   include <pv/standardPVField.h>
+#   include <pv/traceRecord.h>
+#   include <pv/channelProviderLocal.h>
+#   include <pv/serverContext.h>
+#   include <pv/createRequest.h>
+    using namespace epics::pvData;
+    using namespace epics::pvAccess;
+    using namespace epics::pvDatabase;
+#endif
 
 static void help(const char *name)
 {
@@ -89,26 +90,29 @@ int main(int argc,char *argv[])
       cout << "Skipping every " << skip_packets << " packets." << endl;
     }
 
+    std::shared_ptr<FakeNeutronEventRunnable> runnable(new FakeNeutronEventRunnable("neutrons", delay, event_count, random_count, realistic, skip_packets));
+    auto neutrons(runnable->getRecord());
+
+#ifdef USE_PVXS
+    // Nothing required for PVXS
+#else
     PVDatabasePtr master = PVDatabase::getMaster();
     ChannelProviderLocalPtr channelProvider = getChannelProviderLocal();
 
-
-    NeutronPVRecord::shared_pointer neutrons = NeutronPVRecord::create("neutrons");
     if (! master->addRecord(neutrons))
         throw std::runtime_error("Cannot add record " + neutrons->getRecordName());
+#endif
 
-    shared_ptr<FakeNeutronEventRunnable> runnable(new FakeNeutronEventRunnable(neutrons, delay, event_count, random_count, realistic, skip_packets));
     shared_ptr<epicsThread> thread(new epicsThread(*runnable, "processor", epicsThreadGetStackSize(epicsThreadStackMedium)));
     thread->start();
 
-    PVRecordPtr pvRecord = TraceRecord::create("traceRecordPGRPC");
-    if (! master->addRecord(pvRecord))
-        throw std::runtime_error("Cannot add record " + pvRecord->getRecordName());
-    // Release record, held by database
-    pvRecord.reset();
+#ifdef USE_PVXS
+    pvxs::server::Server serv = pvxs::server::Config::from_env().build().addPV("neutrons", neutrons);
+    serv.start();
+#else
+    ServerContext::shared_pointer pvaServer = startPVAServer(PVACCESS_ALL_PROVIDERS,0,true,true);
+#endif
 
-    ServerContext::shared_pointer pvaServer = 
-        startPVAServer(PVACCESS_ALL_PROVIDERS,0,true,true);
     cout << "neutronServer running\n";
     string str;
     while(true) {
@@ -118,7 +122,11 @@ int main(int argc,char *argv[])
 
     }
     runnable->shutdown();
+#ifdef USE_PVXS
+    serv.stop();
+#else
     pvaServer->shutdown();
+#endif
     epicsThreadSleep(1.0);
     // pvaServer->destroy();
     // channelProvider->destroy();

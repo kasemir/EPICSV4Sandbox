@@ -48,10 +48,11 @@ static long global_init(int pass)
     {
         string name("neutrons");
         cout << "Creating V4 '" << name << "' record" << endl;
-        neutrons_record = NeutronPVRecord::create(name);
-        if (! PVDatabase::getMaster()->addRecord(neutrons_record))
-            cout << "Cannot create neutron record '" << neutrons_record->getRecordName() << "'" << endl;
-        fake_event_runnable.reset(new FakeNeutronEventRunnable(neutrons_record, 1, 10, false, 0, 0));
+        FakeNeutronEventRunnable *runnable = new FakeNeutronEventRunnable(name, 1, 10, false, 0, 0);
+        auto record = runnable->getRecord();
+        if (! epics::pvDatabase::PVDatabase::getMaster()->addRecord(record))
+            std::cout << "Cannot create neutron record '" << name << "'" << std::endl;
+        fake_event_runnable.reset(runnable);
     }
     else if (pass == 1)
     {
