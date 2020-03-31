@@ -30,6 +30,11 @@ neutronClientMain_LIBS += pvAccess
 neutronClientMain_LIBS += pvData
 neutronClientMain_LIBS += Com
 
+# Uncomment next three lines to build against PVXS
+#USR_CXXFLAGS += -DUSE_PVXS
+#neutronServerMain_LIBS += pvxs
+#neutronClientMain_LIBS += pvxs
+
 #===========================
 
 include $(TOP)/configure/RULES

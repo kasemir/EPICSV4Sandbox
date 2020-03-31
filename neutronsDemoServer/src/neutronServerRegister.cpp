@@ -13,12 +13,8 @@
 #include <iocsh.h>
 #include <epicsExport.h>
 
-#include <pv/pvDatabase.h>
-
 #include <neutronServer.h>
 
-using namespace std;
-using namespace epics::pvDatabase;
 using namespace epics::neutronServer;
 
 static const iocshArg createArg0 = { "recordName", iocshArgString };
@@ -31,20 +27,23 @@ static const iocshArg *createArgs[] = { &createArg0, &createArg1, &createArg2, &
 static const iocshFuncDef createFuncDef = { "neutronServerCreateRecord", 6, createArgs};
 static void createFunc(const iocshArgBuf *args)
 {
-    char *name = args[0].sval;
+    char *record_name = args[0].sval;
     double delay = args[1].dval;
     size_t event_count = args[2].ival;
     bool random_count = args[3].ival;
     bool realistic = args[4].ival;
     size_t skip_packets = args[5].ival;
 
-    NeutronPVRecord::shared_pointer record = NeutronPVRecord::create(name);
-    if (! PVDatabase::getMaster()->addRecord(record))
-        cout << "Cannot create neutron record '" << name << "'" << endl;
-
     if (delay > 0)
     {
-      epicsThreadRunable *runnable = new FakeNeutronEventRunnable(record, delay, event_count, random_count, realistic, skip_packets);
+        FakeNeutronEventRunnable *runnable = new FakeNeutronEventRunnable(record_name, delay, event_count, random_count, realistic, skip_packets);
+        auto record = runnable->getRecord();
+#ifdef USE_PVXS
+//        pvxs::server::Server serv = server::Config::from_env().build().addPV(record_name, record);
+#else
+        if (! epics::pvDatabase::PVDatabase::getMaster()->addRecord(record))
+            std::cout << "Cannot create neutron record '" << record_name << "'" << std::endl;
+#endif
         epicsThread *thread = new epicsThread(*runnable, "FakeNeutrons", epicsThreadGetStackSize(epicsThreadStackMedium));
         thread->start();
     }
@@ -56,7 +55,7 @@ static void neutronServerRegister(void)
     if (++times == 1)
         iocshRegister(&createFuncDef, createFunc);
     else
-        cout << "neutronServerRegister called " << times << " times" << endl;
+        std::cout << "neutronServerRegister called " << times << " times" << std::endl;
 }
 
 extern "C"

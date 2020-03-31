@@ -29,6 +29,11 @@ using namespace std::tr1;
 using namespace epics::pvData;
 using namespace epics::pvAccess;
 
+#ifdef USE_PVXS
+#   include <pvxs/client.h>
+#   include <pvxs/util.h>
+#endif
+
 /** Requester implementation,
  *  used as base for all the following *Requester
  */
@@ -408,6 +413,135 @@ void doMonitor(string const &name, string const &request, double timeout, short 
     channel->destroy();
 }
 
+#ifdef USE_PVXS
+void checkUpdate(pvxs::Value &update, bool quiet)
+{
+    static uint64 last_pulse_id;
+    static uint64 missing_pulses;
+    static uint64 array_size_differences;
+
+#   ifdef TIME_IT
+    value_timer.start();
+#   endif
+
+    // Compare: Time for value lookup when using name: 12us
+    // shared_ptr<PVInt> value = pvStructure->getIntField("timeStamp.userTag");
+    if (!update.valid())
+    {
+        cout << "Not valid update" << endl;
+        return;
+    }
+
+#   ifdef TIME_IT
+    value_timer.stop();
+#   endif
+
+    // Check pulse ID for skipped updates
+    uint64 pulse_id;
+    try {
+        pulse_id = update["timeStamp.userTag"].as<uint32_t>();
+    } catch (...) {
+        cout << "No 'timeStamp' field" << endl;
+        return;
+    }
+
+    if (last_pulse_id != 0)
+    {
+        int missing = pulse_id - 1 - last_pulse_id;
+        if (missing > 0)
+            missing_pulses += missing;
+    }
+    last_pulse_id = pulse_id;
+
+    // Compare lengths of tof and pixel arrays
+    pvxs::shared_array<const uint32_t> tof;
+    try {
+        tof = update["time_of_flight.value"].as<pvxs::shared_array<const uint32_t>>();
+    } catch (...) {
+        cout << "No 'time_of_flight' array" << endl;
+        return;
+    }
+
+    pvxs::shared_array<const uint32_t> pixel;
+    try {
+        pixel = update["pixel.value"].as<pvxs::shared_array<const uint32_t>>();
+    } catch (...) {
+        cout << "No 'pixel' array" << endl;
+        return;
+    }
+
+    if (tof.size() != pixel.size())
+    {
+        ++array_size_differences;
+        if (! quiet)
+        {
+            // shared_array like std::vector can't be printed directly.
+            // Need to iterate and print individual elements.
+
+            cout << "time_of_flight: " << tof.size() << " elements" << endl;
+            for (auto& v: tof) {
+                cout << v << " ";
+            }
+            cout << endl;
+
+            cout << "pixel: " << pixel.size() << " elements" << endl;
+            for (auto& v: pixel) {
+                cout << v << " ";
+            }
+            cout << endl;
+        }
+    }
+}
+void doMonitorPvxs(string const &name, string const &request, double timeout, short priority, int limit, bool quiet)
+{
+    auto ctxt = pvxs::client::Config::from_env().build();
+    epicsEvent done;
+    auto op = ctxt.monitor(name)
+                  .pvRequest(request)
+                  .event([&done, &limit, quiet](pvxs::client::Subscription& mon)
+    {
+
+        try {
+            while(auto update = mon.pop()) {
+                checkUpdate(update, quiet);
+                if (limit > 0 && --limit == 0) {
+                    done.signal();
+                    break;
+                }
+            }
+
+        } catch (pvxs::client::Finished& conn) {
+//            log_info_printf(app, "%s POP Finished\n", argv[n]);
+
+        } catch (pvxs::client::Connected& conn) {
+            std::cerr  << " Connected to " << conn.peerName << std::endl;
+
+        } catch (pvxs::client::Disconnect& conn) {
+            std::cerr << " Disconnected" << std::endl;
+
+        } catch (std::exception& err) {
+            std::cerr << " Error " << typeid(err).name() << " : " << err.what() << std::endl;
+        }
+
+    }).exec();
+
+    pvxs::SigInt sig([&done]() {
+        done.signal();
+    });
+
+    done.wait();
+
+}
+void getValuePvxs(string const &name, string const &request, double timeout)
+{
+    auto ctxt = pvxs::client::Config::from_env().build();
+    auto op = ctxt.get(name).pvRequest(request).exec();
+    auto result = op->wait(timeout);
+    // No error checking done here to mimic getValue() as closely as possibly
+    // (and show how much shorter the code can be with pvxs)
+}
+#endif
+
 
 static void help(const char *name)
 {
@@ -473,12 +607,19 @@ int main(int argc,char *argv[])
 
     try
     {
+#ifdef USE_PVXS
+        if (monitor)
+            doMonitorPvxs(channel, request, timeout, priority, limit, quiet);
+        else
+            getValuePvxs(channel, request, timeout);
+#else
         ClientFactory::start();
         if (monitor)
             doMonitor(channel, request, timeout, priority, limit, quiet);
         else
             getValue(channel, request, timeout);
         ClientFactory::stop();
+#endif
     }
     catch (exception &ex)
     {
