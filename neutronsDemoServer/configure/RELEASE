@@ -15,3 +15,4 @@
 #  RELEASE.$(EPICS_HOST_ARCH).$(T_A)
 
 include $(TOP)/../../RELEASE.local
+PVXS=/path/to/pvxs

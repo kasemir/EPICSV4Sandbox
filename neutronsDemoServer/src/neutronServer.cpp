@@ -8,18 +8,33 @@
  *
  * @author Kay Kasemir
  */
+#include <algorithm>
 #include <iostream>
-#include <pv/standardPVField.h>
+#include <epicsTime.h>
 #include <workerRunnable.h>
 #include "neutronServer.h"
 #include "nanoTimer.h"
 
-using namespace epics::pvData;
-using namespace epics::pvDatabase;
-using namespace std;
-using namespace std::tr1;
+#ifdef USE_PVXS
+#    include <pvxs/sharedpv.h>
+#    include <pvxs/server.h>
+#    include <pvxs/nt.h>
+     using namespace pvxs;
+#else
+#   include <pv/standardPVField.h>
+     using namespace epics::pvData;
+     using namespace epics::pvDatabase;
+     using namespace std;
+     using namespace std::tr1;
+#endif
 
 namespace epics { namespace neutronServer {
+
+
+#ifdef USE_PVXS
+    // Nothing to do here
+#else
+// And the actual implementation of NeutronPVRecord
 
 NeutronPVRecord::shared_pointer NeutronPVRecord::create(string const & recordName)
 {
@@ -112,6 +127,7 @@ void NeutronPVRecord::update(uint64 id, double charge,
     }
     unlock();
 }
+#endif // USE_PVXS
 
 // --------------------------------------------------------------------------------------------
 // What follows is the FakeNeutronEventRunnable that creates dummy data.
@@ -136,7 +152,7 @@ public:
     {}
 
     /** Start collecting events (fill array with simulated data) */
-    void createEvents(size_t count, uint64 id, bool realistic)
+    void createEvents(size_t count, uint64_t id, bool realistic)
     {
         this->count = count;
         this->id = id;
@@ -145,7 +161,11 @@ public:
     }
 
     /** Wait for data to be filled and return it */
+#ifdef USE_PVXS
+    shared_array<const uint32_t> getEvents()
+#else
     shared_vector<const uint32> getEvents()
+#endif
     {
         waitForCompletion();
         return data;
@@ -155,11 +175,15 @@ protected:
     /** Parameters for new data request: How many events */
     size_t count;
     /** Parameters for new data request: Used to create dummy events */
-    uint64 id;
+    uint32_t id;
     /** Flag to generate semi-real looking data.**/
     bool realistic;
     /** Result of a request for data */
+#ifdef USE_PVXS
+    pvxs::shared_array<const uint32_t> data;
+#else
     shared_vector<const uint32> data;
+#endif
 };
 
 
@@ -172,6 +196,23 @@ protected:
 
 void TimeOfFlightRunnable::doWork()
 {
+    // Compare PVXS vs PVAccess as two blocks since code is short
+#ifdef USE_PVXS
+    pvxs::shared_array<uint32_t> tof(count);
+    if (this->realistic == false)
+        std::fill(tof.begin(), tof.end(), id);
+    else
+    {
+        for (size_t i = 0; i < count; i++)
+        {
+            uint32_t normal_tof = 0;
+            for (uint32_t j = 0; j < NS_TOF_NORM; ++j)
+                normal_tof += rand() % (NS_TOF_MAX);
+            tof[i] = int(normal_tof/NS_TOF_NORM);
+        }
+    }
+    data = tof.freeze();
+#else
     shared_vector<uint32> tof(count);
     if (this->realistic == false)
         fill(tof.begin(), tof.end(), id);
@@ -187,6 +228,7 @@ void TimeOfFlightRunnable::doWork()
         }
     }
     data = freeze(tof);
+#endif
 }
 
 class PixelRunnable : public ArrayRunnable
@@ -199,13 +241,19 @@ protected:
 
 void PixelRunnable::doWork()
 {
+    // Compare PVXS vs PVAccess in individual blocks this time
+
 	// In reality, each event would have a different value,
     // which is simulated a little bit by actually looping over
     // each element.
-    uint32 value = id * 10;
+    uint32_t value = id * 10;
 
     // Pixels created in this thread
+#ifdef USE_PVXS
+    pvxs::shared_array<uint32_t> pixel(count);
+#else
     shared_vector<uint32> pixel(count);
+#endif
 
     if (this->realistic == false)
     {
@@ -228,9 +276,14 @@ void PixelRunnable::doWork()
         // and we could conceivably put different values into
         // each array element.
         timer.start();
+#ifdef USE_PVXS
+        for (size_t i=0; i<count; ++i)
+            pixel[i] = value;
+#else
         uint32 *p = pixel.dataPtr().get();
         for (size_t i=0; i<count; ++i)
             *(p++) = value;
+#endif
         timer.stop();
     
     }
@@ -239,6 +292,15 @@ void PixelRunnable::doWork()
         //Pixel IDs in two detector banks.
         //Generate random number between NS_ID_MIN1 and NS_ID_MAX1, or between NS_ID_MIN2 and NS_ID_MAX2
         timer.start();
+#ifdef USE_PVXS
+        for (size_t i=0; i<count; ++i)
+        {
+            if (i%2 == 0)
+                pixel[i] = (rand() % (NS_ID_MAX1-NS_ID_MIN1)) + NS_ID_MIN1;
+            else
+                pixel[i] = (rand() % (NS_ID_MAX2-NS_ID_MIN2)) + NS_ID_MIN2;
+        }
+#else
         uint32 *p = pixel.dataPtr().get();
         for (uint32 i = 0; i != pixel.size(); ++i)
         {
@@ -247,31 +309,46 @@ void PixelRunnable::doWork()
             else
                 *(p++) = (rand() % (NS_ID_MAX2-NS_ID_MIN2)) + NS_ID_MIN2;
         }
+#endif
         timer.stop();
     }
 
+#ifdef USE_PVXS
+    data = pixel.freeze();
+#else
     data = freeze(pixel);
+#endif
 }
 
-FakeNeutronEventRunnable::FakeNeutronEventRunnable(NeutronPVRecord::shared_pointer record,
-                                                   double delay, size_t event_count, bool random_count, 
+FakeNeutronEventRunnable::FakeNeutronEventRunnable(const std::string& record_name,
+                                                   double delay, size_t event_count, bool random_count,
                                                    bool realistic, size_t skip_packets)
-  : record(record), is_running(true), delay(delay), event_count(event_count), random_count(random_count), 
+  : is_running(true), delay(delay), event_count(event_count), random_count(random_count),
     realistic(realistic), skip_packets(skip_packets)
+#ifdef USE_PVXS
+  , record(pvxs::server::SharedPV::buildReadonly())
+#endif
 {
+#ifdef USE_PVXS
+  recordDef = Neutrons{}.build();
+  Value initial = recordDef.create();
+  record.open(initial);
+#else
+  record = NeutronPVRecord::create(record_name);
+#endif
 }
 
 void FakeNeutronEventRunnable::run()
 {
-    shared_ptr<ArrayRunnable> tof_runnable(new TimeOfFlightRunnable());
-    shared_ptr<epicsThread> tof_thread(new epicsThread(*tof_runnable, "tof_processor", epicsThreadGetStackSize(epicsThreadStackMedium)));
+    std::shared_ptr<ArrayRunnable> tof_runnable(new TimeOfFlightRunnable());
+    std::shared_ptr<epicsThread> tof_thread(new epicsThread(*tof_runnable, "tof_processor", epicsThreadGetStackSize(epicsThreadStackMedium)));
     tof_thread->start();
 
-    shared_ptr<PixelRunnable> pixel_runnable(new PixelRunnable());
-    shared_ptr<epicsThread> pixel_thread(new epicsThread(*pixel_runnable, "pixel_processor", epicsThreadGetStackSize(epicsThreadStackMedium)));
+    std::shared_ptr<PixelRunnable> pixel_runnable(new PixelRunnable());
+    std::shared_ptr<epicsThread> pixel_thread(new epicsThread(*pixel_runnable, "pixel_processor", epicsThreadGetStackSize(epicsThreadStackMedium)));
     pixel_thread->start();
 
-    uint64 id = 0;
+    uint64_t id = 0;
     size_t packets = 0, slow = 0;
 
     epicsTime last_run(epicsTime::getCurrent());
@@ -316,9 +393,9 @@ void FakeNeutronEventRunnable::run()
           if (last_run > next_log)
             {
               next_log = last_run + 10.0;
-              cout << packets << " packets, " << slow << " times slow";
-              cout << ", array values set in " << pixel_runnable->timer;
-              cout << endl;
+              std::cout << packets << " packets, " << slow << " times slow";
+              std::cout << ", array values set in " << pixel_runnable->timer;
+              std::cout << std::endl;
               slow = 0;
             }
 
@@ -326,7 +403,20 @@ void FakeNeutronEventRunnable::run()
           double charge = (1 + id % 10)*1e8;
 
           // <<<< Wait for array threads, fetch their data <<<<
+#ifdef USE_PVXS
+          // This replaces 90 lines of code for NeutronPVRecord implementation at the top of the file
+          Value update = recordDef.create();
+          epicsTimeStamp now = epicsTime::getCurrent();
+          update["timeStamp.secondsPastEpoch"] = now.secPastEpoch;
+          update["timeStamp.nanoseconds"] = now.nsec;
+          update["timeStamp.userTag"] = id;
+          update["proton_charge.value"] = charge;
+          update["time_of_flight.value"] = tof_runnable->getEvents();
+          update["pixel.value"] = pixel_runnable->getEvents();
+          record.post(std::move(update));
+#else
           record->update(id, charge, tof_runnable->getEvents(), pixel_runnable->getEvents());
+#endif
 
           // TODO Overflow the server queue by posting several updates.
           // For client request "record[queueSize=2]field()", this causes overrun.
@@ -339,7 +429,7 @@ void FakeNeutronEventRunnable::run()
 
     pixel_runnable->shutdown();
     tof_runnable->shutdown();
-    cout << "Processing thread exits\n";
+    std::cout << "Processing thread exits\n";
     processing_done.signal();
 }
 
@@ -363,6 +453,5 @@ void FakeNeutronEventRunnable::shutdown()
     is_running = false;
     processing_done.wait(5.0);
 }
-
 
 }} // namespace neutronServer, epics
