@@ -21,7 +21,6 @@
 #include <pv/standardField.h>
 #include <pv/standardPVField.h>
 #include <pv/ntndarrayServer.h>
-#include <pv/traceRecord.h>
 #include <pv/channelProviderLocal.h>
 #include <pv/serverContext.h>
 

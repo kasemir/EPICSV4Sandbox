@@ -59,7 +59,7 @@ NTNDArrayRecord::~NTNDArrayRecord()
 
 void NTNDArrayRecord::destroy()
 {
-    PVRecord::destroy();
+//    PVRecord::destroy();
 }
 
 bool NTNDArrayRecord::init()
