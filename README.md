@@ -30,14 +30,14 @@ and number of events within each update.
 
 
 The neutrons demo server can be compiled against the older pvDatabaseCPP
-library or the newer PVXS library.
-Check the Makefile 'PVXS' and add/remove comments as necessary.
+library or the newer [PVXS](https://github.com/mdavidsaver/pvxs) library.
+Check the Makefile for 'PVXS' and add/remove comments as necessary.
 Note that when using PVXS, you may have to compile everything,
 and that includes EPICS base, with `USR_CXXFLAGS = -std=c++11`.
-There are several ways to accompish that, one is setting it in
+There are several ways to accomplish that, one is setting it in
 `base/configure/CONFIG_COMMON`.
 
-If you're NOT using PVXS but configure/CONFIG_COMMON, the code
+If you're NOT using PVXS but pvDatabaseCPP, the code
 can also run as an IOC:
 
     iocBoot/neutrons/st.cmd
