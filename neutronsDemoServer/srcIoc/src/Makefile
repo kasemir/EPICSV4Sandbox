@@ -20,6 +20,7 @@ neutrons_OBJS_vxWorks += $(EPICS_BASE_BIN)/vxComLibrary
 
 neutrons_LIBS += neutronServer
 neutrons_LIBS += pvDatabase
+neutrons_LIBS += pvxs
 
 neutrons_LIBS += qsrv
 
