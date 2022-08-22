@@ -24,8 +24,8 @@ neutronServerMain_LIBS += pvData
 neutronServerMain_LIBS += Com
 
 # Uncomment next two lines to build against PVXS
-USR_CXXFLAGS += -DUSE_PVX
-neutronServerMain_LIBS += pvxs
+#USR_CXXFLAGS += -DUSE_PVX
+#neutronServerMain_LIBS += pvxs
 # pvxs headers require this C++11 setting.
 # If so, note that EPICS base (pvData etc.)
 # also need to be compiled with the same C++11 setting!
@@ -39,9 +39,9 @@ neutronClientMain_LIBS += pvData
 neutronClientMain_LIBS += Com
 
 # Uncomment next three lines to build against PVXS
-USR_CXXFLAGS += -DUSE_PVXS
-neutronServerMain_LIBS += pvxs
-neutronClientMain_LIBS += pvxs
+#USR_CXXFLAGS += -DUSE_PVXS
+#neutronServerMain_LIBS += pvxs
+#neutronClientMain_LIBS += pvxs
 
 #===========================
 
