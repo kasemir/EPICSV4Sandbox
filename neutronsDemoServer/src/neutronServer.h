@@ -131,6 +131,7 @@ public:
     void run();
     void setDelay(double seconds);
     void setCount(size_t count);
+    void setID(size_t id);
     void setRandomCount(bool random_count);
     void shutdown();
 #ifdef USE_PVXS
@@ -158,6 +159,7 @@ private:
     bool random_count;
     bool realistic;
     size_t skip_packets;
+    uint64_t id;
 };
 
 }}

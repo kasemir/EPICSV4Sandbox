@@ -9,3 +9,4 @@ include "neutronServer.dbd"
 
 device(ao, CONSTANT, devAoDemoNeutronDelay, "Demo Neutron Delay")
 device(ao, CONSTANT, devAoDemoNeutronCount, "Demo Neutron Count")
+device(ao, CONSTANT, devAoDemoNeutronID, "Demo Neutron ID")
