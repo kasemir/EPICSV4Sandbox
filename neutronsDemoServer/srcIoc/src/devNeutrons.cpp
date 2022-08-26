@@ -83,7 +83,6 @@ static long write_count(struct aoRecord *rec)
 
 static long write_id(struct aoRecord *rec)
 {
-    printf("writing id...\n");
     fake_event_runnable->setID(rec->rval);
     return 0;
 }
