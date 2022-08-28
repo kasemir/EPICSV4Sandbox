@@ -30,4 +30,12 @@ record(ao, "$(P):count")
     field(EGU,  "events")
     field(PINI, "YES")
 }
-    
+ 
+record(ao, "$(P):id")
+{
+    field(DTYP, "Demo Neutron ID")
+    field(DOL,  "0")
+    #field(EGU,  "ID")
+    field(PINI, "YES")
+}
+       

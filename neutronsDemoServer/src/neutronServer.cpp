@@ -348,7 +348,8 @@ void FakeNeutronEventRunnable::run()
     std::shared_ptr<epicsThread> pixel_thread(new epicsThread(*pixel_runnable, "pixel_processor", epicsThreadGetStackSize(epicsThreadStackMedium)));
     pixel_thread->start();
 
-    uint64_t id = 0;
+    //uint64_t id = 0;
+    id = 0;
     size_t packets = 0, slow = 0;
 
     epicsTime last_run(epicsTime::getCurrent());
@@ -441,6 +442,12 @@ void FakeNeutronEventRunnable::setDelay(double seconds)
 void FakeNeutronEventRunnable::setCount(size_t count)
 {   // No locking..
     event_count = count;
+}
+
+
+void FakeNeutronEventRunnable::setID(size_t id_)
+{   // No locking..
+    id = id_;
 }
 
 void FakeNeutronEventRunnable::setRandomCount(bool random_count)

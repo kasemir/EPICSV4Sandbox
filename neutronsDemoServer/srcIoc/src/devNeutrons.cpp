@@ -80,6 +80,13 @@ static long write_count(struct aoRecord *rec)
     return 0;
 }
 
+
+static long write_id(struct aoRecord *rec)
+{
+    fake_event_runnable->setID(rec->rval);
+    return 0;
+}
+
 extern "C" {
 
 struct
@@ -124,5 +131,29 @@ struct
     NULL
 };
 epicsExportAddress(dset, devAoDemoNeutronCount);
+
+
+struct
+{
+    long        number;
+    DEVSUPFUN   report;
+    DEVSUPFUN   init;
+    DEVSUPFUN   init_record;
+    DEVSUPFUN   get_ioint_info;
+    DEVSUPFUN   write;
+    DEVSUPFUN   special_linconv;
+} devAoDemoNeutronID =
+{
+    6,
+    NULL,
+    NULL,
+    (DEVSUPFUN) init_record,
+    NULL,
+    (DEVSUPFUN) write_id,
+    NULL
+};
+epicsExportAddress(dset, devAoDemoNeutronID);
+
+
 
 } // "C"
